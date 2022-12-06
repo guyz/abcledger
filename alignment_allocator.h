@@ -3,7 +3,9 @@
 // taken from https://stackoverflow.com/a/8545389
 
 #include <stdlib.h>
+#ifndef __MACH__
 #include <malloc.h>
+#endif
 
 template <typename T, std::size_t N = 16>
 class AlignmentAllocator {
