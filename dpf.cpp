@@ -479,11 +479,11 @@ namespace DPF {
         EvalFullRecursive8(key, sR, tR, lvl+1, stop, res);
     }
 
-    std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn) {
+    std::vector<uint64_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn) {
         assert(logn <= 63);
-        std::vector<uint32_t> data;
-        data.resize(1ULL << logn); // Since data is a byte-array and each byte has 8 DPF values, the size of data needs to be N/8. This isn't relevant in non-1 bit most likely.
-        std::array<uint32_t*,8> data_ptrs;
+        std::vector<uint64_t> data;
+        data.resize( (1ULL << logn) );
+        std::array<uint64_t*,8> data_ptrs;
         for(size_t i = 0; i < 8; i++) {
             data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
         }
@@ -613,23 +613,43 @@ namespace DPF {
         std::array<block, 8> s_array{sLLL, sRLL, sLRL, sRRL, sLLR, sRLR, sLRR, sRRR};
         std::array<uint8_t, 8> t_array{tLLL, tRLL, tLRL, tRRL, tLLR, tRLR, tLRR, tRRR};
 
-        EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs);
+//        reg_arr_union CW;
+//        memcpy(CW.arr, key.data() + key.size() - 16, 16);
+        EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, nullptr);
         return data;
     }
 
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res) {
+    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint64_t*,8>& res, block *CW) {
         if(lvl == stop) {
             std::array<reg_arr_union,8> tmp;
-            reg_arr_union CW;
-            memcpy(CW.arr, key.data() + key.size() - 16, 16);
+            reg_arr_union CW2;
+            memcpy(CW2.arr, key.data() + key.size() - 16, 16);
+//            reg_arr_union256 tmp256;
             std::array<block, 8> conv =  ConvertBlock8(s);
             for (int i = 0; i < 8; i++) {
                 block tt = _mm_set1_epi8(-(t[i]));
-                tmp[i].reg = conv[i] ^ (CW.reg & tt);
-                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
-                res[i] += sizeof(block)/sizeof(*res[0]);
+                tmp[i].reg = conv[i] ^ (CW2.reg & tt);
+//                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
+
+//                tmp256.reg = _mm256_set_epi32(0, tmp[i].arr32[3], 0, tmp[i].arr32[2], 0, tmp[i].arr32[1], 0, tmp[i].arr32[0]); // This casts the 128b vector of (32b, 32b, 32b, 32b)-size to (64b, 64b, 64b, 64b)
+//                memcpy(res[i], tmp256.arr, 32);
+
+                unsigned char * dest = reinterpret_cast<unsigned char*>(res[i]);
+                memcpy(dest, tmp[i].arr, 4);
+                memset(dest+4, 0, 4);
+                memcpy(dest+8, tmp[i].arr + 4, 4);
+                memset(dest+4, 0, 4);
+                memcpy(dest+16, tmp[i].arr + 8, 4);
+                memset(dest+4, 0, 4);
+                memcpy(dest+24, tmp[i].arr + 12, 4);
+                memset(dest+4, 0, 4);
+
+                res[i] += 4;
+//                res[i] += sizeof(tmp256.reg)/sizeof(*res[0]);
+//                res[i] += sizeof(block)/sizeof(*res[0]);
+//                res[i] += 1; // move 256bits ahead
             }
             return;
         }
@@ -650,8 +670,8 @@ namespace DPF {
             sL[i] ^= (sCW & tt);
             sR[i] ^= (sCW & tt);
         }
-        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res);
-        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res);
+        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res, CW);
+        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res, CW);
     }
 
     std::vector<uint8_t> EvalFull8(const std::vector<uint8_t>& key, size_t logn) {
