@@ -1,1 +1,0 @@
-/usr/bin/gcc  -g -O2 -m64 -std=c99 -pedantic -Wall -Wshadow -Wpointer-arith -Wcast-qual -Wformat -Wformat-security -Werror=format-security -Wstrict-prototypes -Wmissing-prototypes -D_FORTIFY_SOURCE=2 -fPIC -fno-strict-overflow -O3 -DNDEBUG   CMakeFiles/test_hazmat.dir/test_hazmat.c.o  -o ../test_hazmat  libsss.a randombytes/librandombytes.a 
