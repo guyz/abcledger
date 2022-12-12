@@ -1,9 +1,17 @@
 #include "dpf.h"
-#include "hashdatastore.h"
+#include "pirw.h"
 
 #include <chrono>
 #include <iostream>
 #include <cassert>
+#include <immintrin.h>
+#include "sss/sss.h"
+#include "shamir.h"
+#include <cstring>
+
+inline __m256i mul256(__m256i x1, __m256i x2) {
+    return _mm256_mullo_epi64(x1, x2);
+}
 
 int main(int argc, char** argv) {
 
@@ -74,6 +82,9 @@ int main(int argc, char** argv) {
     std::cout << "DPF.EvalFull8M "     << evalT3.count() << "sec" << std::endl;
 
     // test correctness
+    if (false){
+        return 0;
+    }
 
     N = 10;
     int alpha = 21;
@@ -94,6 +105,72 @@ int main(int argc, char** argv) {
             assert( (vm0[i] ^ vm1[i]) == 0);
         }
     }
+
+    // Try packing
+//    _mm256_cvtepi32_epi64
+//    uint32_t arr[4] = {23423412, 467456111, 123123112, 546756113};
+//    __m128i x = _mm_set_epi32(arr[3], arr[2], arr[1], arr[0]);
+//    __m256i x1 = _mm256_cvtepi32_epi64(x);
+//    long long* ptr = (long long*)&x1;
+//    printf("%lld %lld %lld %lld\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+//
+//    // Try mult 128-128 - THIS DOES NOT WORK!
+//    __m128i y = _mm_mul_epi32(x, x);
+//
+//    int* ptr2 = (int*)&y;
+//    printf("%d %d %d %d\n", ptr2[0], ptr2[1], ptr2[2], ptr2[3]);
+//
+//    // Try mult 256-256 - THIS WORKS!
+//    __m256i y1 = mul256(x1, x1);
+//    ptr = (long long*)&y1;
+//    printf("%lld %lld %lld %lld\n", ptr[0], ptr[1], ptr[2], ptr[3]);
+
+    // benchmark cast..
+
+    // Define an array of 1000000 int32_t values
+    const uint64_t NNN = 100000000;
+    std::vector<uint32_t> x(NNN), y(NNN);
+
+    // Fill the array with some values
+    for (int i = 0; i < NNN; i++) {
+        x[i] = i;
+        y[i] = i;
+    }
+
+    // Record the starting time
+    auto start = std::chrono::high_resolution_clock::now();
+
+    auto z = PIRW::addvff31(x, y);
+    uint32_t inner_product = PIRW::innerprodff31(x, y);
+
+    // Record the ending time
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Compute the elapsed time
+    std::chrono::duration<double> elapsed = end - start;
+
+    // Print the elapsed time
+    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+
+    // Print the elements of c
+//    for (const auto& element : z)
+//    {
+//        std::cout << element << " ";
+//    }
+//    std::cout << std::endl;
+
+    // Print the inner product
+    std::cout << inner_product << std::endl;
+
+
+    // Try Shamir Sharing
+    int s = -5345348;
+    int p = 2147483647;
+//    int p = 8191;
+
+    std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, s, p);
+    int s1 = recover_secret(shares, p);
+    std::cout << s1 << " is the reconstructed secret " << std::endl;
 
     return 0;
 }

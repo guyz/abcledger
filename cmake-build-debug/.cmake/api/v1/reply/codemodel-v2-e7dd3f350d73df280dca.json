@@ -1,0 +1,78 @@
+{
+	"configurations" : 
+	[
+		{
+			"directories" : 
+			[
+				{
+					"build" : ".",
+					"jsonFile" : "directory-.-Debug-f5ebdc15457944623624.json",
+					"minimumCMakeVersion" : 
+					{
+						"string" : "3.4.1"
+					},
+					"projectIndex" : 0,
+					"source" : ".",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"name" : "Debug",
+			"projects" : 
+			[
+				{
+					"directoryIndexes" : 
+					[
+						0
+					],
+					"name" : "DPFPIR",
+					"targetIndexes" : 
+					[
+						0,
+						1,
+						2
+					]
+				}
+			],
+			"targets" : 
+			[
+				{
+					"directoryIndex" : 0,
+					"id" : "bench::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-bench-Debug-b4a1eb10cee7685a7425.json",
+					"name" : "bench",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "dpf_pir::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-dpf_pir-Debug-c0d9e84a421ed5f16a45.json",
+					"name" : "dpf_pir",
+					"projectIndex" : 0
+				},
+				{
+					"directoryIndex" : 0,
+					"id" : "dpf_tests::@6890427a1f51a3e7e1df",
+					"jsonFile" : "target-dpf_tests-Debug-f69dced95af1dcc7face.json",
+					"name" : "dpf_tests",
+					"projectIndex" : 0
+				}
+			]
+		}
+	],
+	"kind" : "codemodel",
+	"paths" : 
+	{
+		"build" : "/Users/guyz/CLionProjects/dpf-cpp/cmake-build-debug",
+		"source" : "/Users/guyz/CLionProjects/dpf-cpp"
+	},
+	"version" : 
+	{
+		"major" : 2,
+		"minor" : 4
+	}
+}

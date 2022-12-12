@@ -1,0 +1,312 @@
+## This file contains all the build statements describing the
+# compilation DAG.
+
+# =============================================================================
+# Write statements declared in CMakeLists.txt:
+# 
+# Which is the root file.
+# =============================================================================
+
+# =============================================================================
+# Project: DPFPIR
+# Configurations: Debug
+# =============================================================================
+
+#############################################
+# Minimal version of Ninja required by this file
+
+ninja_required_version = 1.5
+
+
+#############################################
+# Set configuration variable for custom commands.
+
+CONFIGURATION = Debug
+# =============================================================================
+# Include auxiliary files.
+
+
+#############################################
+# Include rules file.
+
+include CMakeFiles/rules.ninja
+
+# =============================================================================
+
+#############################################
+# Logical path to working directory; prefix for absolute paths.
+
+cmake_ninja_workdir = /Users/guyz/CLionProjects/dpf-cpp/cmake-build-debug/
+# =============================================================================
+# Object build statements for EXECUTABLE target dpf_pir
+
+
+#############################################
+# Order-only phony target for dpf_pir
+
+build cmake_object_order_depends_target_dpf_pir: phony || CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/AES.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/AES.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/AES.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/Defines.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/Defines.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/Defines.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/Log.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/Log.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/Log.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/PRNG.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/PRNG.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/PRNG.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/dpf.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/dpf.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/dpf.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/hashdatastore.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/hashdatastore.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/hashdatastore.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+build CMakeFiles/dpf_pir.dir/main.cpp.o: CXX_COMPILER__dpf_pir_Debug /Users/guyz/CLionProjects/dpf-cpp/main.cpp || cmake_object_order_depends_target_dpf_pir
+  DEP_FILE = CMakeFiles/dpf_pir.dir/main.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_pir.dir
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target dpf_pir
+
+
+#############################################
+# Link the executable dpf_pir
+
+build dpf_pir: CXX_EXECUTABLE_LINKER__dpf_pir_Debug CMakeFiles/dpf_pir.dir/AES.cpp.o CMakeFiles/dpf_pir.dir/Defines.cpp.o CMakeFiles/dpf_pir.dir/Log.cpp.o CMakeFiles/dpf_pir.dir/PRNG.cpp.o CMakeFiles/dpf_pir.dir/dpf.cpp.o CMakeFiles/dpf_pir.dir/hashdatastore.cpp.o CMakeFiles/dpf_pir.dir/main.cpp.o | /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1
+  LINK_LIBRARIES = /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
+  OBJECT_DIR = CMakeFiles/dpf_pir.dir
+  POST_BUILD = :
+  PRE_LINK = :
+  TARGET_FILE = dpf_pir
+  TARGET_PDB = dpf_pir.dbg
+
+# =============================================================================
+# Object build statements for EXECUTABLE target bench
+
+
+#############################################
+# Order-only phony target for bench
+
+build cmake_object_order_depends_target_bench: phony || CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/AES.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/AES.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/AES.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/Defines.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/Defines.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/Defines.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/Log.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/Log.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/Log.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/PRNG.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/PRNG.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/PRNG.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/dpf.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/dpf.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/dpf.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/hashdatastore.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/hashdatastore.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/hashdatastore.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+build CMakeFiles/bench.dir/bench.cpp.o: CXX_COMPILER__bench_Debug /Users/guyz/CLionProjects/dpf-cpp/bench.cpp || cmake_object_order_depends_target_bench
+  DEP_FILE = CMakeFiles/bench.dir/bench.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/bench.dir
+  OBJECT_FILE_DIR = CMakeFiles/bench.dir
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target bench
+
+
+#############################################
+# Link the executable bench
+
+build bench: CXX_EXECUTABLE_LINKER__bench_Debug CMakeFiles/bench.dir/AES.cpp.o CMakeFiles/bench.dir/Defines.cpp.o CMakeFiles/bench.dir/Log.cpp.o CMakeFiles/bench.dir/PRNG.cpp.o CMakeFiles/bench.dir/dpf.cpp.o CMakeFiles/bench.dir/hashdatastore.cpp.o CMakeFiles/bench.dir/bench.cpp.o | /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1
+  LINK_LIBRARIES = /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
+  OBJECT_DIR = CMakeFiles/bench.dir
+  POST_BUILD = :
+  PRE_LINK = :
+  TARGET_FILE = bench
+  TARGET_PDB = bench.dbg
+
+# =============================================================================
+# Object build statements for EXECUTABLE target dpf_tests
+
+
+#############################################
+# Order-only phony target for dpf_tests
+
+build cmake_object_order_depends_target_dpf_tests: phony || CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/AES.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/AES.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/AES.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/Defines.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/Defines.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/Defines.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/Log.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/Log.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/Log.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/PRNG.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/PRNG.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/PRNG.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/dpf.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/dpf.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/dpf.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/hashdatastore.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/hashdatastore.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/hashdatastore.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+build CMakeFiles/dpf_tests.dir/test.cpp.o: CXX_COMPILER__dpf_tests_Debug /Users/guyz/CLionProjects/dpf-cpp/test.cpp || cmake_object_order_depends_target_dpf_tests
+  DEP_FILE = CMakeFiles/dpf_tests.dir/test.cpp.o.d
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1 -std=gnu++14
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  OBJECT_FILE_DIR = CMakeFiles/dpf_tests.dir
+
+
+# =============================================================================
+# Link build statements for EXECUTABLE target dpf_tests
+
+
+#############################################
+# Link the executable dpf_tests
+
+build dpf_tests: CXX_EXECUTABLE_LINKER__dpf_tests_Debug CMakeFiles/dpf_tests.dir/AES.cpp.o CMakeFiles/dpf_tests.dir/Defines.cpp.o CMakeFiles/dpf_tests.dir/Log.cpp.o CMakeFiles/dpf_tests.dir/PRNG.cpp.o CMakeFiles/dpf_tests.dir/dpf.cpp.o CMakeFiles/dpf_tests.dir/hashdatastore.cpp.o CMakeFiles/dpf_tests.dir/test.cpp.o | /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
+  FLAGS = -ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes  -std=c++14 -O0 -g -ggdb -rdynamic -arch x86_64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX12.3.sdk -mmacosx-version-min=12.1
+  LINK_LIBRARIES = /opt/homebrew/opt/openssl@3/lib/libcrypto.3.dylib
+  OBJECT_DIR = CMakeFiles/dpf_tests.dir
+  POST_BUILD = :
+  PRE_LINK = :
+  TARGET_FILE = dpf_tests
+  TARGET_PDB = dpf_tests.dbg
+
+
+#############################################
+# Utility command for edit_cache
+
+build CMakeFiles/edit_cache.util: CUSTOM_COMMAND
+  COMMAND = cd /Users/guyz/CLionProjects/dpf-cpp/cmake-build-debug && /Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake -E echo No\ interactive\ CMake\ dialog\ available.
+  DESC = No interactive CMake dialog available...
+  restat = 1
+
+build edit_cache: phony CMakeFiles/edit_cache.util
+
+
+#############################################
+# Utility command for rebuild_cache
+
+build CMakeFiles/rebuild_cache.util: CUSTOM_COMMAND
+  COMMAND = cd /Users/guyz/CLionProjects/dpf-cpp/cmake-build-debug && /Applications/CLion.app/Contents/bin/cmake/mac/bin/cmake --regenerate-during-build -S/Users/guyz/CLionProjects/dpf-cpp -B/Users/guyz/CLionProjects/dpf-cpp/cmake-build-debug
+  DESC = Running CMake to regenerate build system...
+  pool = console
+  restat = 1
+
+build rebuild_cache: phony CMakeFiles/rebuild_cache.util
+
+# =============================================================================
+# Target aliases.
+
+# =============================================================================
+# Folder targets.
+
+# =============================================================================
+
+#############################################
+# Folder: /Users/guyz/CLionProjects/dpf-cpp/cmake-build-debug
+
+build all: phony dpf_pir bench dpf_tests
+
+# =============================================================================
+# Built-in targets
+
+
+#############################################
+# Re-run CMake if any of its inputs changed.
+
+build build.ninja: RERUN_CMAKE | ../CMakeLists.txt /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeCInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeCXXInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeCommonLanguageInclude.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeGenericSystem.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeInitializeConfigs.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeLanguageInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeSystemSpecificInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeSystemSpecificInitialize.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/AppleClang-C.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/AppleClang-CXX.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/CMakeCommonCompilerMacros.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/Clang.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/GNU.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-AppleClang-C.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-AppleClang-CXX.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-Clang-C.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-Clang-CXX.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-Clang.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Darwin-Initialize.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Darwin.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/UnixPaths.cmake CMakeCache.txt CMakeFiles/3.23.2/CMakeCCompiler.cmake CMakeFiles/3.23.2/CMakeCXXCompiler.cmake CMakeFiles/3.23.2/CMakeSystem.cmake
+  pool = console
+
+
+#############################################
+# A missing CMake input file is not an error.
+
+build ../CMakeLists.txt /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeCInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeCXXInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeCommonLanguageInclude.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeGenericSystem.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeInitializeConfigs.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeLanguageInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeSystemSpecificInformation.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/CMakeSystemSpecificInitialize.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/AppleClang-C.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/AppleClang-CXX.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/CMakeCommonCompilerMacros.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/Clang.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Compiler/GNU.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-AppleClang-C.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-AppleClang-CXX.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-Clang-C.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-Clang-CXX.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Apple-Clang.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Darwin-Initialize.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/Darwin.cmake /Applications/CLion.app/Contents/bin/cmake/mac/share/cmake-3.23/Modules/Platform/UnixPaths.cmake CMakeCache.txt CMakeFiles/3.23.2/CMakeCCompiler.cmake CMakeFiles/3.23.2/CMakeCXXCompiler.cmake CMakeFiles/3.23.2/CMakeSystem.cmake: phony
+
+
+#############################################
+# Clean all the built files.
+
+build clean: CLEAN
+
+
+#############################################
+# Print all primary targets available.
+
+build help: HELP
+
+
+#############################################
+# Make the all target the default.
+
+default all

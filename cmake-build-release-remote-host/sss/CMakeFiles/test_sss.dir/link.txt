@@ -1,0 +1,1 @@
+/usr/bin/gcc  -g -O2 -m64 -std=c99 -pedantic -Wall -Wshadow -Wpointer-arith -Wcast-qual -Wformat -Wformat-security -Werror=format-security -Wstrict-prototypes -Wmissing-prototypes -D_FORTIFY_SOURCE=2 -fPIC -fno-strict-overflow -O3 -DNDEBUG   CMakeFiles/test_sss.dir/test_sss.c.o  -o ../test_sss  libsss.a randombytes/librandombytes.a 
