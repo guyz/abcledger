@@ -294,7 +294,7 @@ namespace DPF {
             tmp2.arr32[i] = modmersenne31safe64(arr[i] - s0f.arr32[i] + s1f.arr32[i]); // Can also overflow here (2 additions.. so need to reduce mod field)
 
             if (t1) {
-                tmp2.arr32[i] = modmersenne31safe64( (-1L) * tmp2.arr32[i] );
+                tmp2.arr32[i] = modmersenne31safe64( (-1L) * tmp2.arr32[i] ); // TODO: key to vectorize this. Can be done with bit ops..
             }
         }
 
@@ -678,18 +678,24 @@ namespace DPF {
                 tt = _mm_and_si128(tt, PP_block);
 
                 tmp[i].reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
+                tmp2.reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
 
                 if (party_index) {
+                    // Multiply by (-1) --> just taking a NOT? This way we avoid overflowing when we use multiplication.
+                    tmp[i].reg = _mm_andnot_si128(tmp[i].reg, PP_block);
+//                    tmp[i].reg = modmersenne31block(_mm_add_epi32(tmp[i].reg, ONES_block));
 
-                    //                    block unit = _mm_set1_epi32(-1); // TODO: compiler will likely optimize, but if too slow move to constant..
-                    //                    tmp[i].reg = modmersenne31block(_mm_mul_epi32(tmp[i].reg, unit)); // THIS IS NOT SAFE, but also does not seem to help performance..
-                    // NOTE: this does not hurt performance even though it's not vectorized
-                    tmp[i].reg = _mm_set_epi32(
-                            modmersenne31safe64( (-1L) * tmp[i].arr32[3] ),
-                            modmersenne31safe64( (-1L) * tmp[i].arr32[2] ),
-                            modmersenne31safe64( (-1L) * tmp[i].arr32[1] ),
-                            modmersenne31safe64( (-1L) * tmp[i].arr32[0] )
-                            );
+//                    std::cout << "tmp: " << tmp[i].arr32[3] << ", " << tmp[i].arr32[2] << ", " << tmp[i].arr32[1] << ", " << tmp[i].arr32[0] << std::endl;
+                    // Hurts performance of party 1
+//                    tmp2.reg = _mm_set_epi32(  // TODO: key to vectorize this. Can be done with bit ops..
+//                            modmersenne31safe64( (-1L) * tmp2.arr32[3] ),
+//                            modmersenne31safe64( (-1L) * tmp2.arr32[2] ),
+//                            modmersenne31safe64( (-1L) * tmp2.arr32[1] ),
+//                            modmersenne31safe64( (-1L) * tmp2.arr32[0] )
+//                            );
+//                    std::cout << "tmp2: " << tmp2.arr32[3] << ", " << tmp2.arr32[2] << ", " << tmp2.arr32[1] << ", " << tmp2.arr32[0] << std::endl;
+
+
                 }
 
                 memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit

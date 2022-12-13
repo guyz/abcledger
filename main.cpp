@@ -73,7 +73,7 @@ int main(int argc, char** argv) {
     time2 = std::chrono::high_resolution_clock::now();
     auto u = DPF::EvalFullM1bit(a2, N);
     time3 = std::chrono::high_resolution_clock::now();
-    auto w = DPF::EvalFull8M(a3, N);
+    auto w = DPF::EvalFull8M(a3, N, 1);
     time4 = std::chrono::high_resolution_clock::now();
 
     evalT1 = time2 - time1;

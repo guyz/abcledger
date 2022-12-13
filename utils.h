@@ -14,7 +14,8 @@
 const int PP = 2147483647;
 
 const block PP_block = _mm_set1_epi32(2147483647);
-const block PP2_block = _mm_set1_epi32(2147483648);
+//const block PP2_block = _mm_set1_epi32(2147483648);
+const block ONES_block = _mm_set1_epi32(1);
 
 // mod 2^31 - 1
 uint32_t modmersenne31(uint32_t x);
