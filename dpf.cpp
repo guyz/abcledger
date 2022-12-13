@@ -9,6 +9,10 @@
 #include <stdlib.h>
 #include <immintrin.h>
 #include <chrono>
+#include "utils.h"
+#include <emmintrin.h>
+
+const int FIELD_ORDER = 2^31 - 1;
 
 namespace DPF {
     namespace prg {
@@ -60,6 +64,22 @@ namespace DPF {
         std::array<block,8> out;
         mAesFixedKey.encryptECBBlocks(in.data(), 8, out.data());
         return out;
+    }
+
+    // These also convert "down" to the field of interest (31-bit prime)
+    inline block ConvertBlockField(block in) {
+        block blk = ConvertBlock(in);
+        return _mm_and_si128(blk, PP_block); // NOTE: probably can safely just take the first 31bits here
+//        return modmersenne31block(blk);
+    }
+
+    inline std::array<block,8> ConvertBlock8Field(const std::array<block,8>& in) {
+        auto res = ConvertBlock8(in);
+        for (int i = 0; i < 8; i++) {
+//            res[i] = modmersenne31block(res[i]);
+            res[i] = _mm_and_si128(res[i], PP_block); // NOTE: probably can safely just take the first 31bits here
+        }
+        return res;
     }
 
     block generate_random_128bit_number()
@@ -252,11 +272,33 @@ namespace DPF {
 
         }
         reg_arr_union tmp = {ZeroBlock};
-        uint32_t arr[4] = {0, 0, 0, 0};
+        reg_arr_union tmp2 = {ZeroBlock};
+        reg_arr_union s1f = {ZeroBlock};
+        reg_arr_union s0f = {ZeroBlock};
+
+        uint64_t arr[4] = {0, 0, 0, 0};
         arr[alpha % 4] = msg;
-        tmp.reg = _mm_set_epi32(arr[3], arr[2], arr[1], arr[0]);
-        tmp.reg = tmp.reg ^ ConvertBlock(s0) ^ ConvertBlock(s1);
-        CW.insert(CW.end(), (uint8_t*)&tmp.reg, ((uint8_t*)&tmp.reg) + sizeof(tmp.reg));
+
+        // Vectorized code - not very important since Gen is fast anyway..
+//        tmp.reg = _mm_set_epi32(arr[3], arr[2], arr[1], arr[0]);
+//        tmp.reg = tmp.reg ^ ConvertBlockField(s0) ^ ConvertBlockField(s1);
+
+//        tmp2.reg = _mm_sub_epi32(ConvertBlockField(s1), ConvertBlockField(s0));
+//        tmp.reg = _mm_add_epi32(tmp.reg, tmp2.reg);
+
+        // TODO: vectorize?
+        s0f.reg = ConvertBlockField(s0);
+        s1f.reg = ConvertBlockField(s1);
+
+        for (int i = 0; i < 4; i++) {
+            tmp2.arr32[i] = modmersenne31safe64(arr[i] - s0f.arr32[i] + s1f.arr32[i]); // Can also overflow here (2 additions.. so need to reduce mod field)
+
+            if (t1) {
+                tmp2.arr32[i] = modmersenne31safe64( (-1L) * tmp2.arr32[i] );
+            }
+        }
+
+        CW.insert(CW.end(), (uint8_t*)&tmp2.reg, ((uint8_t*)&tmp2.reg) + sizeof(tmp2.reg));
         ka.insert(ka.end(), CW.begin(), CW.end());
         kb.insert(kb.end(), CW.begin(), CW.end());
 
@@ -479,11 +521,11 @@ namespace DPF {
         EvalFullRecursive8(key, sR, tR, lvl+1, stop, res);
     }
 
-    std::vector<uint64_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn) {
+    std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
         assert(logn <= 63);
-        std::vector<uint64_t> data;
+        std::vector<uint32_t> data;
         data.resize( (1ULL << logn) );
-        std::array<uint64_t*,8> data_ptrs;
+        std::array<uint32_t*,8> data_ptrs;
         for(size_t i = 0; i < 8; i++) {
             data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
         }
@@ -615,41 +657,56 @@ namespace DPF {
 
 //        reg_arr_union CW;
 //        memcpy(CW.arr, key.data() + key.size() - 16, 16);
-        EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, nullptr);
+        EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, nullptr, party_index);
         return data;
     }
 
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint64_t*,8>& res, block *CW) {
+    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, block *CW, bool party_index) {
         if(lvl == stop) {
+
             std::array<reg_arr_union,8> tmp;
-            reg_arr_union CW2;
+            reg_arr_union CW2, tmp2, tmp3;
             memcpy(CW2.arr, key.data() + key.size() - 16, 16);
 //            reg_arr_union256 tmp256;
-            std::array<block, 8> conv =  ConvertBlock8(s);
+            std::array<block, 8> conv =  ConvertBlock8Field(s);
             for (int i = 0; i < 8; i++) {
-                block tt = _mm_set1_epi8(-(t[i]));
-                tmp[i].reg = conv[i] ^ (CW2.reg & tt);
-//                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
 
-//                tmp256.reg = _mm256_set_epi32(0, tmp[i].arr32[3], 0, tmp[i].arr32[2], 0, tmp[i].arr32[1], 0, tmp[i].arr32[0]); // This casts the 128b vector of (32b, 32b, 32b, 32b)-size to (64b, 64b, 64b, 64b)
-//                memcpy(res[i], tmp256.arr, 32);
+                // TODO: vectorized code?
+                block tt = _mm_set1_epi8(-(t[i]) );
+                tt = _mm_and_si128(tt, PP_block);
 
-                unsigned char * dest = reinterpret_cast<unsigned char*>(res[i]);
-                memcpy(dest, tmp[i].arr, 4);
-                memset(dest+4, 0, 4);
-                memcpy(dest+8, tmp[i].arr + 4, 4);
-                memset(dest+4, 0, 4);
-                memcpy(dest+16, tmp[i].arr + 8, 4);
-                memset(dest+4, 0, 4);
-                memcpy(dest+24, tmp[i].arr + 12, 4);
-                memset(dest+4, 0, 4);
+                tmp[i].reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
+
+                if (party_index) {
+
+                    //                    block unit = _mm_set1_epi32(-1); // TODO: compiler will likely optimize, but if too slow move to constant..
+                    //                    tmp[i].reg = modmersenne31block(_mm_mul_epi32(tmp[i].reg, unit)); // THIS IS NOT SAFE, but also does not seem to help performance..
+                    // NOTE: this does not hurt performance even though it's not vectorized
+                    tmp[i].reg = _mm_set_epi32(
+                            modmersenne31safe64( (-1L) * tmp[i].arr32[3] ),
+                            modmersenne31safe64( (-1L) * tmp[i].arr32[2] ),
+                            modmersenne31safe64( (-1L) * tmp[i].arr32[1] ),
+                            modmersenne31safe64( (-1L) * tmp[i].arr32[0] )
+                            );
+                }
+
+                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
+
+                // this expands 4 32bit numbers into 64bit ones. Don't need this for 31-bit mersenne field, but useful if we want to expand beyond.
+//                unsigned char * dest = reinterpret_cast<unsigned char*>(res[i]);
+//                memcpy(dest, tmp[i].arr, 4);
+//                memset(dest+4, 0, 4);
+//                memcpy(dest+8, tmp[i].arr + 4, 4);
+//                memset(dest+4, 0, 4);
+//                memcpy(dest+16, tmp[i].arr + 8, 4);
+//                memset(dest+4, 0, 4);
+//                memcpy(dest+24, tmp[i].arr + 12, 4);
+//                memset(dest+4, 0, 4);
+                // END
 
                 res[i] += 4;
-//                res[i] += sizeof(tmp256.reg)/sizeof(*res[0]);
-//                res[i] += sizeof(block)/sizeof(*res[0]);
-//                res[i] += 1; // move 256bits ahead
             }
             return;
         }
@@ -670,8 +727,8 @@ namespace DPF {
             sL[i] ^= (sCW & tt);
             sR[i] ^= (sCW & tt);
         }
-        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res, CW);
-        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res, CW);
+        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res, CW, party_index);
+        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res, CW, party_index);
     }
 
     std::vector<uint8_t> EvalFull8(const std::vector<uint8_t>& key, size_t logn) {

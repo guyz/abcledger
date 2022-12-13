@@ -8,6 +8,8 @@
 #include "sss/sss.h"
 #include "shamir.h"
 #include <cstring>
+#include "utils.h"
+#include <cstdlib>
 
 inline __m256i mul256(__m256i x1, __m256i x2) {
     return _mm256_mullo_epi64(x1, x2);
@@ -86,25 +88,49 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    N = 10;
-    int alpha = 21;
-    int beta = 25;
-    auto km = DPF::GenM(alpha, N, beta);
-    auto km0 = km.first;
-    auto km1 = km.second;
-    auto vm0 = DPF::EvalFull8M(km0, N);
-    auto vm1 = DPF::EvalFull8M(km1, N);
+//    uint32_t arr[4] = {3995864550, 725568960, 3911890762, 3379270938};
+    uint32_t arr[4] = {15, 34, 42, 57};
+    block blk = _mm_set_epi32(arr[3], arr[2], arr[1], arr[0]);
 
-    for (int i = 0; i < vm0.size(); i++) {
-////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
-////        std::cout << "a2[" << i << "] =" << a2[i] << std::endl;
-//        std::cout << "res[" << i << "] = " << (vm0[i] ^ vm1[i]) << std::endl;
-        if (i == alpha) {
-            assert( (vm0[i] ^ vm1[i]) == beta);
-        } else {
-            assert( (vm0[i] ^ vm1[i]) == 0);
+    reg_arr_union tmp = {ZeroBlock};
+    tmp.reg = modmersenne31block(blk);
+
+    uint32_t arr2[4] = {3995864550, 725568960, 3911890762, 3379270938};
+    blk = _mm_set_epi32(arr2[3], arr2[2], arr2[1], arr2[0]);
+    tmp = {ZeroBlock};
+    tmp.reg = modmersenne31block(blk);
+
+    blk = _mm_set_epi32(arr2[0], arr2[1], arr2[2], arr2[3]);
+    tmp = {ZeroBlock};
+    tmp.reg = modmersenne31block(blk);
+    srand(time(0));
+    for (int j; j < 100; j++) {
+        N = 10;
+        int alpha = rand() % (1 << N) - 1; // 22;
+        // Generate a random number between 1 and 2^30
+        int beta = rand() % (1 << 30) + 1; // 25;
+        auto km = DPF::GenM(alpha, N, beta);
+        auto km0 = km.first;
+        auto km1 = km.second;
+        auto vm0 = DPF::EvalFull8M(km0, N);
+        auto vm1 = DPF::EvalFull8M(km1, N, true);
+
+        for (int i = 0; i < vm0.size(); i++) {
+            ////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
+            ////        std::cout << "a2[" << i << "] =" << a2[i] << std::endl;
+            //        std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << std::endl;
+            if (i == alpha) {
+                std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << " " << vm0[i] << " " << vm1[i]
+                          << " " << beta << std::endl;
+                assert(modmersenne31(vm0[i] + vm1[i]) == beta);
+            } else {
+                assert(modmersenne31(vm0[i] + vm1[i]) == 0);
+            }
+
         }
     }
+
+    std::cout << "GenM and EvalFull8M works!" << std::endl;
 
     // Try packing
 //    _mm256_cvtepi32_epi64
