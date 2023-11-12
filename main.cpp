@@ -122,7 +122,7 @@ int main(int argc, char** argv) {
             if (i == alpha) {
                 std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << " " << vm0[i] << " " << vm1[i]
                           << " " << beta << std::endl;
-                assert(modmersenne31(vm0[i] + vm1[i]) == beta);
+                assert(modmersenne31(   vm0[i] + vm1[i]) == beta);
             } else {
                 assert(modmersenne31(vm0[i] + vm1[i]) == 0);
             }
@@ -154,7 +154,8 @@ int main(int argc, char** argv) {
     // benchmark cast..
 
     // Define an array of 1000000 int32_t values
-    const uint64_t NNN = 100000000;
+//    const uint64_t NNN = 100000000;
+    const uint64_t NNN = 16777216;
     std::vector<uint32_t> x(NNN), y(NNN);
 
     // Fill the array with some values
@@ -176,7 +177,7 @@ int main(int argc, char** argv) {
     std::chrono::duration<double> elapsed = end - start;
 
     // Print the elapsed time
-    std::cout << "Elapsed time: " << elapsed.count() << " seconds" << std::endl;
+    std::cout << "Elapsed time (for inner product of " << NNN << " values): " << elapsed.count() << " seconds" << std::endl;
 
     // Print the elements of c
 //    for (const auto& element : z)

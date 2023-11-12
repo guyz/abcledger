@@ -875,58 +875,12 @@ namespace DPF {
         return data;
     }
 
+    // New DPF Constructions
 
-//    std::vector<uint8_t> EvalFullNonRec(const std::vector<uint8_t>& key, size_t logn) {
-//        assert(logn <= 63);
-//        std::vector<uint8_t> data;
-//        std::vector<block> sL_vals;
-//        std::vector<block> sR_vals;
-//        std::vector<int> tL_vals;
-//        std::vector<int> tR_vals;
-//        data.reserve(1ULL << (logn-3));
-//        block s;
-//        memcpy(&s, key.data(), 16);
-//        uint8_t t = key.data()[16];
-//        size_t stop = logn >=7 ? logn - 7 : 0; // pack 7 layers in final CW
-//
-//        for(size_t lvl = 0; lvl < stop; lvl++) {
-//            const size_t layersize = (1 << lvl);
-//            block sCW;
-//            memcpy(&sCW, key.data() + 17 + lvl * 18, 16);
-//            uint8_t tLCW = key.data()[17 + lvl * 18 + 16];
-//            uint8_t tRCW = key.data()[17 + lvl * 18 + 17];
-//            for(int j = 0; j < layersize; j++) {
-//                block sL = prg::getL(s);
-//                uint8_t tL = getT(sL);
-//                sL = clr(sL);
-//                block sR = prg::getR(s);
-//                uint8_t tR = getT(sR);
-//                sR = clr(sR);
-//                if (t) {
-//                    Log::v("eval", "tcw %d %d", tLCW, tRCW);
-//                    tL ^= tLCW;
-//                    tR ^= tRCW;
-//                    sL ^= sCW;
-//                    sR ^= sCW;
-//                }
-//            }
-//        }
-//
-//        if(lvl == stop) {
-//            if(t) {
-//                reg_arr_union tmp;
-//                reg_arr_union CW;
-//                memcpy(CW.arr, key.data()+key.size()-16, 16);
-//                tmp.reg = CW.reg ^ ConvertBlock(s);
-//                res.insert(res.end(), &tmp.arr[0], &tmp.arr[16]);
-//            }
-//            else {
-//                reg_arr_union tmp;
-//                tmp.reg = ConvertBlock(s);
-//                res.insert(res.end(), &tmp.arr[0], &tmp.arr[16]);
-//            }
-//            return;
-//        }
-//        return data;
-//    }
+    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> Gen2M(size_t alpha, size_t logn, uint32_t m1, uint32_t m2) {
+        uint32_t m = modmersenne31(m2 - m1);
+        auto keys = GenM(alpha, logn, m);
+        auto k0 = keys.first;
+        auto k1 = keys.second;
+    }
 }
