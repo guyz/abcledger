@@ -272,12 +272,12 @@ namespace DPF {
 
         }
         reg_arr_union tmp = {ZeroBlock};
-        reg_arr_union tmp2 = {ZeroBlock};
-        reg_arr_union s1f = {ZeroBlock};
-        reg_arr_union s0f = {ZeroBlock};
-
+        // TODO: change everything to 32bit?
         uint64_t arr[4] = {0, 0, 0, 0};
         arr[alpha % 4] = msg;
+        for (int i = 0; i < 4; i++) {
+            tmp.arr32[i] = arr[i];
+        }
 
         // Vectorized code - not very important since Gen is fast anyway..
 //        tmp.reg = _mm_set_epi32(arr[3], arr[2], arr[1], arr[0]);
@@ -286,19 +286,8 @@ namespace DPF {
 //        tmp2.reg = _mm_sub_epi32(ConvertBlockField(s1), ConvertBlockField(s0));
 //        tmp.reg = _mm_add_epi32(tmp.reg, tmp2.reg);
 
-        // TODO: vectorize?
-        s0f.reg = ConvertBlockField(s0);
-        s1f.reg = ConvertBlockField(s1);
-
-        for (int i = 0; i < 4; i++) {
-            tmp2.arr32[i] = modmersenne31safe64(arr[i] - s0f.arr32[i] + s1f.arr32[i]); // Can also overflow here (2 additions.. so need to reduce mod field)
-
-            if (t1) {
-                tmp2.arr32[i] = modmersenne31safe64( (-1L) * tmp2.arr32[i] ); // TODO: key to vectorize this. Can be done with bit ops..
-            }
-        }
-
-        CW.insert(CW.end(), (uint8_t*)&tmp2.reg, ((uint8_t*)&tmp2.reg) + sizeof(tmp2.reg));
+        tmp.reg = tmp.reg ^ ConvertBlock(s0) ^ ConvertBlock(s1);
+        CW.insert(CW.end(), (uint8_t*)&tmp.reg, ((uint8_t*)&tmp.reg) + sizeof(tmp.reg));
         ka.insert(ka.end(), CW.begin(), CW.end());
         kb.insert(kb.end(), CW.begin(), CW.end());
 
@@ -523,11 +512,12 @@ namespace DPF {
 
     std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
         assert(logn <= 63);
-        std::vector<uint32_t> data;
-        data.resize( (1ULL << logn) );
-        std::array<uint32_t*,8> data_ptrs;
+        std::vector<uint8_t> data;
+        data.resize( 4*(1ULL << logn) );
+        std::array<uint8_t*,8> data_ptrs;
         for(size_t i = 0; i < 8; i++) {
-            data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
+//            data_ptrs[i] = &data[i*(1ULL << (logn - 3 - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
+            data_ptrs[i] = &data[4*i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
         }
         block s;
         memcpy(&s, key.data(), 16);
@@ -658,64 +648,85 @@ namespace DPF {
 //        reg_arr_union CW;
 //        memcpy(CW.arr, key.data() + key.size() - 16, 16);
         EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, nullptr, party_index);
-        return data;
+
+        const uint32_t* begin = reinterpret_cast<const uint32_t*>(data.data());
+        const uint32_t* end = reinterpret_cast<const uint32_t*>(data.data() + data.size());
+
+        return std::vector<uint32_t>(begin, end);
+//        return data;
     }
 
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, block *CW, bool party_index) {
+    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint8_t*,8>& res, block *CW, bool party_index) {
+//        if(lvl == stop) {
+//
+//            std::array<reg_arr_union,8> tmp;
+//            reg_arr_union CW2, tmp2, tmp3;
+//            memcpy(CW2.arr, key.data() + key.size() - 16, 16);
+////            reg_arr_union256 tmp256;
+//            std::array<block, 8> conv =  ConvertBlock8Field(s);
+//            for (int i = 0; i < 8; i++) {
+//
+//                // TODO: vectorized code?
+//                block tt = _mm_set1_epi8(-(t[i]) );
+//                tt = _mm_and_si128(tt, PP_block);
+//
+//                tmp[i].reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
+//                tmp2.reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
+//
+//                if (party_index) {
+//                    // Multiply by (-1) --> just taking a NOT? This way we avoid overflowing when we use multiplication.
+//                    tmp[i].reg = _mm_andnot_si128(tmp[i].reg, PP_block);
+////                    tmp[i].reg = modmersenne31block(_mm_add_epi32(tmp[i].reg, ONES_block));
+//
+////                    std::cout << "tmp: " << tmp[i].arr32[3] << ", " << tmp[i].arr32[2] << ", " << tmp[i].arr32[1] << ", " << tmp[i].arr32[0] << std::endl;
+//                    // Hurts performance of party 1
+////                    tmp2.reg = _mm_set_epi32(  // TODO: key to vectorize this. Can be done with bit ops..
+////                            modmersenne31safe64( (-1L) * tmp2.arr32[3] ),
+////                            modmersenne31safe64( (-1L) * tmp2.arr32[2] ),
+////                            modmersenne31safe64( (-1L) * tmp2.arr32[1] ),
+////                            modmersenne31safe64( (-1L) * tmp2.arr32[0] )
+////                            );
+////                    std::cout << "tmp2: " << tmp2.arr32[3] << ", " << tmp2.arr32[2] << ", " << tmp2.arr32[1] << ", " << tmp2.arr32[0] << std::endl;
+//
+//
+//                }
+//
+//                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
+//
+//                // this expands 4 32bit numbers into 64bit ones. Don't need this for 31-bit mersenne field, but useful if we want to expand beyond.
+////                unsigned char * dest = reinterpret_cast<unsigned char*>(res[i]);
+////                memcpy(dest, tmp[i].arr, 4);
+////                memset(dest+4, 0, 4);
+////                memcpy(dest+8, tmp[i].arr + 4, 4);
+////                memset(dest+4, 0, 4);
+////                memcpy(dest+16, tmp[i].arr + 8, 4);
+////                memset(dest+4, 0, 4);
+////                memcpy(dest+24, tmp[i].arr + 12, 4);
+////                memset(dest+4, 0, 4);
+//                // END
+//
+//                res[i] += 4;
+//            }
+//            return;
+//        }
+
+
         if(lvl == stop) {
-
             std::array<reg_arr_union,8> tmp;
-            reg_arr_union CW2, tmp2, tmp3;
-            memcpy(CW2.arr, key.data() + key.size() - 16, 16);
-//            reg_arr_union256 tmp256;
-            std::array<block, 8> conv =  ConvertBlock8Field(s);
+            reg_arr_union CW;
+            memcpy(CW.arr, key.data() + key.size() - 16, 16);
+            std::array<block, 8> conv =  ConvertBlock8(s);
             for (int i = 0; i < 8; i++) {
-
-                // TODO: vectorized code?
-                block tt = _mm_set1_epi8(-(t[i]) );
-                tt = _mm_and_si128(tt, PP_block);
-
-                tmp[i].reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
-                tmp2.reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
-
-                if (party_index) {
-                    // Multiply by (-1) --> just taking a NOT? This way we avoid overflowing when we use multiplication.
-                    tmp[i].reg = _mm_andnot_si128(tmp[i].reg, PP_block);
-//                    tmp[i].reg = modmersenne31block(_mm_add_epi32(tmp[i].reg, ONES_block));
-
-//                    std::cout << "tmp: " << tmp[i].arr32[3] << ", " << tmp[i].arr32[2] << ", " << tmp[i].arr32[1] << ", " << tmp[i].arr32[0] << std::endl;
-                    // Hurts performance of party 1
-//                    tmp2.reg = _mm_set_epi32(  // TODO: key to vectorize this. Can be done with bit ops..
-//                            modmersenne31safe64( (-1L) * tmp2.arr32[3] ),
-//                            modmersenne31safe64( (-1L) * tmp2.arr32[2] ),
-//                            modmersenne31safe64( (-1L) * tmp2.arr32[1] ),
-//                            modmersenne31safe64( (-1L) * tmp2.arr32[0] )
-//                            );
-//                    std::cout << "tmp2: " << tmp2.arr32[3] << ", " << tmp2.arr32[2] << ", " << tmp2.arr32[1] << ", " << tmp2.arr32[0] << std::endl;
-
-
-                }
-
-                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
-
-                // this expands 4 32bit numbers into 64bit ones. Don't need this for 31-bit mersenne field, but useful if we want to expand beyond.
-//                unsigned char * dest = reinterpret_cast<unsigned char*>(res[i]);
-//                memcpy(dest, tmp[i].arr, 4);
-//                memset(dest+4, 0, 4);
-//                memcpy(dest+8, tmp[i].arr + 4, 4);
-//                memset(dest+4, 0, 4);
-//                memcpy(dest+16, tmp[i].arr + 8, 4);
-//                memset(dest+4, 0, 4);
-//                memcpy(dest+24, tmp[i].arr + 12, 4);
-//                memset(dest+4, 0, 4);
-                // END
-
-                res[i] += 4;
+                block tt = _mm_set1_epi8(-(t[i]));
+                tmp[i].reg = conv[i] ^ (CW.reg & tt);
+                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 128 elements condensed.. since this is 1 bit
+                res[i] += sizeof(block);
             }
             return;
         }
+
         std::array<block,8> sL = prg::getL8(s);
         std::array<uint8_t,8> tL = getT8(sL);
         clr8(sL);
@@ -876,11 +887,32 @@ namespace DPF {
     }
 
     // New DPF Constructions
-
-    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> Gen2M(size_t alpha, size_t logn, uint32_t m1, uint32_t m2) {
-        uint32_t m = modmersenne31(m2 - m1);
+    std::pair<std::pair<uint32_t, std::vector<uint8_t>>, std::pair<uint32_t, std::vector<uint8_t>>>
+    GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2) {
+        // TODO: pack values
+        uint32_t m = m1 ^ m2;
         auto keys = GenM(alpha, logn, m);
-        auto k0 = keys.first;
-        auto k1 = keys.second;
+
+        // TODO: Implement Eval8M for a single value..
+        auto vm0 = DPF::EvalFull8M(keys.first, logn);
+        uint32_t z = m1 ^ vm0[alpha];
+
+        return std::make_pair(
+                std::make_pair(z, keys.first),
+                std::make_pair(z, keys.second)
+        );
     }
+
+    std::vector<uint32_t> EvalFull8P(const std::pair<uint32_t, std::vector<uint8_t>>& key, size_t logn, bool party_index) {
+        uint32_t z = key.first;
+        std::vector<uint8_t> dpfkey = key.second;
+        auto vm = DPF::EvalFull8M(dpfkey, logn, party_index);
+
+        // TODO: insert this into the recursive function instead of looping all values again. May help..
+        for (int i = 0; i < vm.size(); i++) {
+            vm[i] = z ^ vm[i];
+        }
+        return vm;
+    }
+
 }

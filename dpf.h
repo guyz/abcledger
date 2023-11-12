@@ -15,12 +15,15 @@ namespace DPF {
 
     // 32-bit messages
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>> GenM(size_t alpha, size_t logn, uint32_t msg);
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, block *CW, bool party_index = false);
+    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint8_t*,8>& res, block *CW, bool party_index = false);
     std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index = false);
 
-    // New DPF constructions
-    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> Gen2M(size_t alpha, size_t logn, uint32_t m1, uint32_t m2);
-    std::vector<uint32_t> Eval2M(const std::vector<uint8_t>& key, size_t logn, bool party_index = false);
+    // New DPF constructions (Updated 2023)
+    // (1,2)-DPF+
+    std::pair<std::pair<uint32_t, std::vector<uint8_t>>, std::pair<uint32_t, std::vector<uint8_t>>>
+    GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2);
+    std::vector<uint32_t> EvalFull8P(const std::pair<uint32_t, std::vector<uint8_t>>& key, size_t logn, bool party_index = false);
+
 
 
 

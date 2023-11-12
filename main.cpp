@@ -108,26 +108,59 @@ int main(int argc, char** argv) {
         N = 10;
         int alpha = rand() % (1 << N) - 1; // 22;
         // Generate a random number between 1 and 2^30
-        int beta = rand() % (1 << 30) + 1; // 25;
+        int beta = rand() % (1 << 16) + 1; // 25;
         auto km = DPF::GenM(alpha, N, beta);
         auto km0 = km.first;
         auto km1 = km.second;
         auto vm0 = DPF::EvalFull8M(km0, N);
         auto vm1 = DPF::EvalFull8M(km1, N, true);
 
+        // DPF+ tests
+        int beta1 = rand() % (1 << 16) + 1; // 25;
+        int beta2 = beta ^ beta1;
+        auto kmp = DPF::GenP(alpha, N, beta1, beta2);
+        auto kmp0 = kmp.first;
+        auto kmp1 = kmp.second;
+        auto vmp0 = DPF::EvalFull8P(kmp0, N);
+        auto vmp1 = DPF::EvalFull8P(kmp1, N, true);
+
         for (int i = 0; i < vm0.size(); i++) {
             ////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
             ////        std::cout << "a2[" << i << "] =" << a2[i] << std::endl;
             //        std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << std::endl;
             if (i == alpha) {
-                std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << " " << vm0[i] << " " << vm1[i]
+                std::cout << "res[" << i << "] = " << (vm0[i] ^ vm1[i]) << " " << vm0[i] << " " << vm1[i]
                           << " " << beta << std::endl;
-                assert(modmersenne31(   vm0[i] + vm1[i]) == beta);
+                assert( (vm0[i] ^ vm1[i]) == beta);
+                assert( (vmp0[i] ^ vmp1[i]) == beta);
+                assert(vmp0[i] == beta1);
+                assert(vmp1[i] == beta2);
             } else {
-                assert(modmersenne31(vm0[i] + vm1[i]) == 0);
+                assert( (vm0[i] ^ vm1[i]) == 0);
+                assert( (vmp0[i] ^ vmp1[i]) == 0);
+//                assert(modmersenne31(vm0[i] + vm1[i]) == 0);
+//                assert(modmersenne31(vmp0[i] + vmp1[i]) == 0);
             }
 
         }
+
+//        for (int i = 0; i < vm0.size(); i++) {
+//            ////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
+//            ////        std::cout << "a2[" << i << "] =" << a2[i] << std::endl;
+//            //        std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << std::endl;
+//            if (i == alpha) {
+//                std::cout << "res[" << i << "] = " << modmersenne31(vm0[i] + vm1[i]) << " " << vm0[i] << " " << vm1[i]
+//                          << " " << beta << std::endl;
+//                assert(modmersenne31(   vm0[i] + vm1[i]) == beta);
+//                assert(modmersenne31(   vmp0[i] + vmp1[i]) == beta);
+//                assert(vmp0[i] == beta1);
+//                assert(vmp1[i] == beta2);
+//            } else {
+//                assert(modmersenne31(vm0[i] + vm1[i]) == 0);
+////                assert(modmersenne31(vmp0[i] + vmp1[i]) == 0);
+//            }
+//
+//        }
     }
 
     std::cout << "GenM and EvalFull8M works!" << std::endl;

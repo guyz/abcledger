@@ -22,8 +22,8 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS} -std=c++14")
 # Select flags.
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O2 -g -ggdb -rdynamic")
-SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
-#SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
+#SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
+SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
 
 add_executable(dpf_pir ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h)
 target_link_libraries(dpf_pir crypto)
