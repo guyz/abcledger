@@ -11,6 +11,7 @@
 #include <chrono>
 #include "utils.h"
 #include <emmintrin.h>
+#include "shamir.h"
 
 const int FIELD_ORDER = 2^31 - 1;
 
@@ -825,7 +826,7 @@ namespace DPF {
     // New DPF Constructions
     std::pair<std::pair<uint32_t, std::vector<uint8_t>>, std::pair<uint32_t, std::vector<uint8_t>>>
     GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2) {
-        // TODO: pack values
+        // TODO: pack values - not sure if needed actually? Go over this..
         uint32_t m = m1 ^ m2;
         auto keys = GenM(alpha, logn, m);
 
@@ -849,6 +850,47 @@ namespace DPF {
             vm[i] = z ^ vm[i];
         }
         return vm;
+    }
+
+
+    // Shamir DPFs
+    std::vector<std::vector<std::pair<uint32_t, std::vector<uint8_t>>>>
+    GenShamir(size_t alpha, size_t logn, uint32_t m) {
+        std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 1, m, PP);
+        uint32_t m1 = shares[0].second;
+        uint32_t m2 = modmersenne31(shares[1].second * MODINV2);
+        uint32_t m3 = modmersenne31(shares[2].second * MODINV3);
+
+        uint32_t v1 = rand();
+        uint32_t v3 = m1 ^ v1;
+        uint32_t v2 = m2 ^ v3;
+        uint32_t v4 = m3 ^ v2;
+
+        auto keys1 = GenP(alpha, logn, v1, v2);
+        auto keys2 = GenP(alpha, logn, v3, v4);
+
+        std::vector<std::pair<uint32_t, std::vector<uint8_t>>> key_for_p1 = {keys1.first, keys2.first};
+        std::vector<std::pair<uint32_t, std::vector<uint8_t>>> key_for_p2 = {keys1.second, keys2.first};
+        std::vector<std::pair<uint32_t, std::vector<uint8_t>>> key_for_p3 = {keys1.second, keys2.second};
+
+        return {key_for_p1, key_for_p2, key_for_p3};
+    }
+
+    void EvalShamir(const std::pair<uint32_t, std::vector<uint8_t>>& key, size_t logn, int party_index) {
+        // TODO: might be able to save some performance with using (2, 4) as the relevant points so I can use shifts instead of multiplication. Worth taking a look.
+        int index1 = 0;
+        int index2 = 0;
+
+        // map party index into the local indices of each DPF
+        if (party_index == 1) {
+            index1 = 1;
+        } else if (party_index == 2) {
+            index1 = 1;
+            index2 = 1;
+        }
+
+        // TODO: continue here..
+
     }
 
 }

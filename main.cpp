@@ -228,7 +228,7 @@ int main(int argc, char** argv) {
     int p = 2147483647;
 //    int p = 8191;
 
-    std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, s, p);
+    std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 1, s, p);
     int s1 = recover_secret(shares, p);
     std::cout << s1 << " is the reconstructed secret " << std::endl;
 

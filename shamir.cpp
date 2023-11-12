@@ -49,8 +49,8 @@ std::vector<int64_t> gen_random_poly(int64_t degree, int64_t secret, int64_t p) 
 }
 
 // Generate a set of shares for a given secret and number of shares over Zp
-std::vector<std::pair<int64_t, int64_t>> gen_shares(int64_t num_shares, int64_t secret, int64_t p) {
-    int64_t degree = num_shares - 1;
+std::vector<std::pair<int64_t, int64_t>> gen_shares(int64_t num_shares, int64_t degree, int64_t secret, int64_t p) {
+//    int64_t degree = num_shares - 1;
     std::vector<int64_t> coeffs = gen_random_poly(degree, secret, p);
 
     std::vector<std::pair<int64_t, int64_t>> shares;
