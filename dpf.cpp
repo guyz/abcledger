@@ -279,13 +279,6 @@ namespace DPF {
             tmp.arr32[i] = arr[i];
         }
 
-        // Vectorized code - not very important since Gen is fast anyway..
-//        tmp.reg = _mm_set_epi32(arr[3], arr[2], arr[1], arr[0]);
-//        tmp.reg = tmp.reg ^ ConvertBlockField(s0) ^ ConvertBlockField(s1);
-
-//        tmp2.reg = _mm_sub_epi32(ConvertBlockField(s1), ConvertBlockField(s0));
-//        tmp.reg = _mm_add_epi32(tmp.reg, tmp2.reg);
-
         tmp.reg = tmp.reg ^ ConvertBlock(s0) ^ ConvertBlock(s1);
         CW.insert(CW.end(), (uint8_t*)&tmp.reg, ((uint8_t*)&tmp.reg) + sizeof(tmp.reg));
         ka.insert(ka.end(), CW.begin(), CW.end());
@@ -645,74 +638,17 @@ namespace DPF {
         std::array<block, 8> s_array{sLLL, sRLL, sLRL, sRRL, sLLR, sRLR, sLRR, sRRR};
         std::array<uint8_t, 8> t_array{tLLL, tRLL, tLRL, tRRL, tLLR, tRLR, tLRR, tRRR};
 
-//        reg_arr_union CW;
-//        memcpy(CW.arr, key.data() + key.size() - 16, 16);
         EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, nullptr, party_index);
 
         const uint32_t* begin = reinterpret_cast<const uint32_t*>(data.data());
         const uint32_t* end = reinterpret_cast<const uint32_t*>(data.data() + data.size());
 
         return std::vector<uint32_t>(begin, end);
-//        return data;
     }
 
 
     // optimized for vectorized ops
     void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint8_t*,8>& res, block *CW, bool party_index) {
-//        if(lvl == stop) {
-//
-//            std::array<reg_arr_union,8> tmp;
-//            reg_arr_union CW2, tmp2, tmp3;
-//            memcpy(CW2.arr, key.data() + key.size() - 16, 16);
-////            reg_arr_union256 tmp256;
-//            std::array<block, 8> conv =  ConvertBlock8Field(s);
-//            for (int i = 0; i < 8; i++) {
-//
-//                // TODO: vectorized code?
-//                block tt = _mm_set1_epi8(-(t[i]) );
-//                tt = _mm_and_si128(tt, PP_block);
-//
-//                tmp[i].reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
-//                tmp2.reg = modmersenne31block(_mm_add_epi32(conv[i], (CW2.reg & tt) ));
-//
-//                if (party_index) {
-//                    // Multiply by (-1) --> just taking a NOT? This way we avoid overflowing when we use multiplication.
-//                    tmp[i].reg = _mm_andnot_si128(tmp[i].reg, PP_block);
-////                    tmp[i].reg = modmersenne31block(_mm_add_epi32(tmp[i].reg, ONES_block));
-//
-////                    std::cout << "tmp: " << tmp[i].arr32[3] << ", " << tmp[i].arr32[2] << ", " << tmp[i].arr32[1] << ", " << tmp[i].arr32[0] << std::endl;
-//                    // Hurts performance of party 1
-////                    tmp2.reg = _mm_set_epi32(  // TODO: key to vectorize this. Can be done with bit ops..
-////                            modmersenne31safe64( (-1L) * tmp2.arr32[3] ),
-////                            modmersenne31safe64( (-1L) * tmp2.arr32[2] ),
-////                            modmersenne31safe64( (-1L) * tmp2.arr32[1] ),
-////                            modmersenne31safe64( (-1L) * tmp2.arr32[0] )
-////                            );
-////                    std::cout << "tmp2: " << tmp2.arr32[3] << ", " << tmp2.arr32[2] << ", " << tmp2.arr32[1] << ", " << tmp2.arr32[0] << std::endl;
-//
-//
-//                }
-//
-//                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 4 elements condensed.. since this is 32 bit
-//
-//                // this expands 4 32bit numbers into 64bit ones. Don't need this for 31-bit mersenne field, but useful if we want to expand beyond.
-////                unsigned char * dest = reinterpret_cast<unsigned char*>(res[i]);
-////                memcpy(dest, tmp[i].arr, 4);
-////                memset(dest+4, 0, 4);
-////                memcpy(dest+8, tmp[i].arr + 4, 4);
-////                memset(dest+4, 0, 4);
-////                memcpy(dest+16, tmp[i].arr + 8, 4);
-////                memset(dest+4, 0, 4);
-////                memcpy(dest+24, tmp[i].arr + 12, 4);
-////                memset(dest+4, 0, 4);
-//                // END
-//
-//                res[i] += 4;
-//            }
-//            return;
-//        }
-
-
         if(lvl == stop) {
             std::array<reg_arr_union,8> tmp;
             reg_arr_union CW;
