@@ -10,9 +10,81 @@
 #include <cstring>
 #include "utils.h"
 #include <cstdlib>
+#include <random>
 
 inline __m256i mul256(__m256i x1, __m256i x2) {
     return _mm256_mullo_epi64(x1, x2);
+}
+
+void benchmark_mersenne() {
+    const size_t N = 10000000; // Number of elements
+    const int REPEATS = 10;    // Number of repeats
+
+    // Random number generation
+    std::mt19937 rng;
+    rng.seed(std::random_device()());
+    std::uniform_int_distribution<uint32_t> dist(0, UINT32_MAX);
+
+    // Create a vector of random uint32_t values
+    std::vector<uint32_t> values(N);
+    for (size_t i = 0; i < N; ++i) {
+        values[i] = dist(rng);
+    }
+
+    // Benchmark modmersenne31
+    auto start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < REPEATS; ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            modmersenne31(values[j]);
+        }
+    }
+    auto end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed1 = end - start;
+    double avgTime1 = elapsed1.count() / REPEATS;
+
+    // Benchmark modmersenne31safe64
+    start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < REPEATS; ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            modmersenne31safe64(values[j]);
+        }
+    }
+    end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed2 = end - start;
+    double avgTime2 = elapsed2.count() / REPEATS;
+
+    // Print results
+    std::cout << "Average execution time for modmersenne31: " << avgTime1 << " seconds." << std::endl;
+    std::cout << "Average execution time for modmersenne31safe64: " << avgTime2 << " seconds." << std::endl;
+
+    // Benchmark (values[j] % PP)
+    start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < REPEATS; ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            volatile uint32_t result = values[j] % PP;  // volatile to prevent optimization
+        }
+    }
+    end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed3 = end - start;
+    double avgTime3 = elapsed3.count() / REPEATS;
+
+    // Print result for the modulus operation - testing with none mersenne prime to see if it matters.
+    std::cout << "Average execution time for (values[j] % PP): " << avgTime3 << " seconds." << std::endl;
+
+    // Benchmark (values[j] % PP)
+    start = std::chrono::high_resolution_clock::now();
+    for (int i = 0; i < REPEATS; ++i) {
+        for (size_t j = 0; j < N; ++j) {
+            volatile uint32_t result = values[j] % OTHER_PRIME;  // volatile to prevent optimization
+        }
+    }
+    end = std::chrono::high_resolution_clock::now();
+    std::chrono::duration<double> elapsed4 = end - start;
+    double avgTime4 = elapsed3.count() / REPEATS;
+
+    // Print result for the modulus operation
+    std::cout << "Average execution time for (values[j] % OTHER_PRIME): " << avgTime4 << " seconds." << std::endl;
+
 }
 
 int main(int argc, char** argv) {
@@ -124,6 +196,14 @@ int main(int argc, char** argv) {
         auto vmp0 = DPF::EvalFull8P(kmp0, N);
         auto vmp1 = DPF::EvalFull8P(kmp1, N, true);
 
+        auto kms = DPF::GenShamir(alpha, N, beta);
+        auto kms0 = kms[0];
+        auto kms1 = kms[1];
+        auto kms2 = kms[2];
+        auto vms0 = DPF::EvalShamir(kms0, N, 0);
+        auto vms1 = DPF::EvalShamir(kms1, N, 1);
+        auto vms2 = DPF::EvalShamir(kms2, N, 2);
+
         for (int i = 0; i < vm0.size(); i++) {
             ////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
             ////        std::cout << "a2[" << i << "] =" << a2[i] << std::endl;
@@ -133,11 +213,21 @@ int main(int argc, char** argv) {
                           << " " << beta << std::endl;
                 assert( (vm0[i] ^ vm1[i]) == beta);
                 assert( (vmp0[i] ^ vmp1[i]) == beta);
+                std::cout << "vm[" << i << "]: Share1: " << vms0[i] << ", Share2: " << vms1[i] << ", Share3: " << vms2[i] << std::endl;
                 assert(vmp0[i] == beta1);
                 assert(vmp1[i] == beta2);
+                auto shares = encode_to_shares({vms0[i], vms1[i], vms2[i]});
+                auto vv = recover_secret(shares, PP);
+                assert(vv == beta);
             } else {
+                std::cout << "vm[" << i << "]: Share1: " << vms0[i] << ", Share2: " << vms1[i] << ", Share3: " << vms2[i] << std::endl;
                 assert( (vm0[i] ^ vm1[i]) == 0);
                 assert( (vmp0[i] ^ vmp1[i]) == 0);
+
+                auto shares = encode_to_shares({vms0[i], vms1[i], vms2[i]});
+                auto vv = recover_secret(shares, PP);
+                assert(vv == 0);
+//                assert( (vms0[i] ^ vms1[i]) == 0);
 //                assert(modmersenne31(vm0[i] + vm1[i]) == 0);
 //                assert(modmersenne31(vmp0[i] + vmp1[i]) == 0);
             }
@@ -189,6 +279,8 @@ int main(int argc, char** argv) {
     // Define an array of 1000000 int32_t values
 //    const uint64_t NNN = 100000000;
     const uint64_t NNN = 16777216;
+//    const uint64_t NNN = 268435456;
+//    const uint64_t NNN = 1073741824;
     std::vector<uint32_t> x(NNN), y(NNN);
 
     // Fill the array with some values
@@ -200,8 +292,11 @@ int main(int argc, char** argv) {
     // Record the starting time
     auto start = std::chrono::high_resolution_clock::now();
 
-    auto z = PIRW::addvff31(x, y);
-    uint32_t inner_product = PIRW::innerprodff31(x, y);
+//    auto z = PIRW::addvff31(x, y);
+    uint32_t inner_product;
+    for (int j = 0; j < 20; j++) {
+        inner_product = PIRW::innerprodff31(x, y);
+    }
 
     // Record the ending time
     auto end = std::chrono::high_resolution_clock::now();
@@ -210,7 +305,7 @@ int main(int argc, char** argv) {
     std::chrono::duration<double> elapsed = end - start;
 
     // Print the elapsed time
-    std::cout << "Elapsed time (for inner product of " << NNN << " values): " << elapsed.count() << " seconds" << std::endl;
+    std::cout << "Elapsed time (for inner product of " << NNN << " values): " << elapsed.count()/20.0 << " seconds" << std::endl;
 
     // Print the elements of c
 //    for (const auto& element : z)
@@ -228,9 +323,12 @@ int main(int argc, char** argv) {
     int p = 2147483647;
 //    int p = 8191;
 
-    std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 1, s, p);
+    std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 2, s, p);
     int s1 = recover_secret(shares, p);
     std::cout << s1 << " is the reconstructed secret " << std::endl;
+
+    // Benchmark mersenne modulus
+    benchmark_mersenne();
 
     return 0;
 }

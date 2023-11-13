@@ -24,7 +24,10 @@ namespace DPF {
     GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2);
     std::vector<uint32_t> EvalFull8P(const std::pair<uint32_t, std::vector<uint8_t>>& key, size_t logn, bool party_index = false);
 
-
+    // (1,3)-SS-DPF
+    std::vector<std::vector<std::pair<uint32_t, std::vector<uint8_t>>>>
+    GenShamir(size_t alpha, size_t logn, uint32_t m);
+    std::vector<uint32_t> EvalShamir(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, size_t logn, uint64_t party_index);
 
 
 

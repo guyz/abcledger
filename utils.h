@@ -11,9 +11,10 @@
 #include <immintrin.h>
 #include "Defines.h"
 
+const int OTHER_PRIME = 4294967111;
 const int PP = 2147483647;
-const int MODINV2 = 1073741824;
-const int MODINV3 = 1431655765;
+const uint64_t MODINV2 = 1073741824;
+const uint64_t MODINV3 = 1431655765;
 
 const block PP_block = _mm_set1_epi32(2147483647);
 //const block PP2_block = _mm_set1_epi32(2147483648);

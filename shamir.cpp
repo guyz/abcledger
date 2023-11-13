@@ -93,6 +93,14 @@ int64_t lagrange_interp(std::vector<int64_t> x, std::vector<int64_t> y, int64_t 
     return res;
 }
 
+// Helper function to encode a vector of uint32_t into shares format
+std::vector<std::pair<int64_t, int64_t>> encode_to_shares(const std::vector<uint32_t>& input) {
+    std::vector<std::pair<int64_t, int64_t>> shares;
+    for (size_t idx = 0; idx < input.size(); ++idx) {
+        shares.emplace_back(static_cast<int64_t>(idx + 1), static_cast<int64_t>(input[idx]));
+    }
+    return shares;
+}
 // Recover the secret value from a given set of shares over Zp
 int64_t recover_secret(std::vector<std::pair<int64_t, int64_t>> shares, int64_t p) {
     int64_t num_shares = shares.size();

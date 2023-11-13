@@ -15,22 +15,25 @@ set(SRCS
 
 add_subdirectory(sss)
 
-set(CMAKE_C_FLAGS "-ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mavx512f -mavx512vl -mavx512dq -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
+set(CMAKE_C_FLAGS "-ffunction-sections -Wall -fopenmp -maes -msse2 -msse4.1 -mavx2 -mavx512f -mavx512vl -mavx512dq -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
 #set(CMAKE_C_FLAGS "-ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
-set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS} -std=c++14")
+set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS}")
 
 # Select flags.
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O2 -g -ggdb -rdynamic")
-#SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
-SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
+SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
+#SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
 
 add_executable(dpf_pir ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h)
 target_link_libraries(dpf_pir crypto)
 target_link_libraries(dpf_pir sss)
+#target_link_options(dpf_pir PRIVATE -fopenmp)
 
 add_executable(bench ${SRCS} bench.cpp aligned_allocator.cpp aligned_allocator.h)
 target_link_libraries(bench crypto)
+#target_link_options(bench PRIVATE -fopenmp)
 
 add_executable(dpf_tests ${SRCS} test.cpp)
 target_link_libraries(dpf_tests crypto)
+#target_link_options(dpf_tests PRIVATE -fopenmp)

@@ -856,10 +856,14 @@ namespace DPF {
     // Shamir DPFs
     std::vector<std::vector<std::pair<uint32_t, std::vector<uint8_t>>>>
     GenShamir(size_t alpha, size_t logn, uint32_t m) {
-        std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 1, m, PP);
+        std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 2, m, PP);
         uint32_t m1 = shares[0].second;
-        uint32_t m2 = modmersenne31(shares[1].second * MODINV2);
-        uint32_t m3 = modmersenne31(shares[2].second * MODINV3);
+//        uint32_t m2 = modmersenne31(static_cast<uint64_t>(shares[1].second) * MODINV2);
+//        uint32_t m3 = modmersenne31(static_cast<uint64_t>(shares[2].second) * MODINV3);
+        uint32_t m2 = (shares[1].second * MODINV2) % PP;
+        uint32_t m3 = (shares[2].second * MODINV3) % PP;
+
+//        std::cout << "m: " << m << ", m1 (Share1): " << m1 << ", m2 (Share2): " << m2 << ", m3 (Share3): " << m3 << std::endl;
 
         uint32_t v1 = rand();
         uint32_t v3 = m1 ^ v1;
@@ -876,21 +880,33 @@ namespace DPF {
         return {key_for_p1, key_for_p2, key_for_p3};
     }
 
-    void EvalShamir(const std::pair<uint32_t, std::vector<uint8_t>>& key, size_t logn, int party_index) {
+    std::vector<uint32_t> EvalShamir(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, size_t logn, uint64_t party_index) {
         // TODO: might be able to save some performance with using (2, 4) as the relevant points so I can use shifts instead of multiplication. Worth taking a look.
-        int index1 = 0;
-        int index2 = 0;
+        bool index1 = false;
+        bool index2 = false;
 
         // map party index into the local indices of each DPF
         if (party_index == 1) {
-            index1 = 1;
+            index1 = true;
         } else if (party_index == 2) {
-            index1 = 1;
-            index2 = 1;
+            index1 = true;
+            index2 = true;
         }
 
-        // TODO: continue here..
+        auto vm1 = DPF::EvalFull8P(key[0], logn, index1);
+        auto vm2 = DPF::EvalFull8P(key[1], logn, index2);
 
+        // TODO: check if better to define as a uint64 vector if you're looping anyway
+        std::vector<uint32_t> vm(vm1.size());
+        // TODO: check if losing a lot of performance for re-looping. Also, parallelize.
+        for (int i = 0; i < vm1.size(); i++) {
+//            auto tmptmp = (vm1[i] ^ vm2[i]);
+//            vm[i] = modmersenne31(static_cast<uint64_t>(vm1[i] ^ vm2[i]) * (party_index + 1ULL));
+//            vm[i] = modmersenne31(static_cast<uint64_t>(vm1[i] ^ vm2[i]) * (party_index + 1ULL));
+//            uint64_t tmptmp = static_cast<uint64_t>(vm1[i] ^ vm2[i]);
+            vm[i] = ((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP;
+        }
+        return vm;
     }
 
 }
