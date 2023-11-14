@@ -87,6 +87,42 @@ void benchmark_mersenne() {
 
 }
 
+void test_sumproduct() {
+    const uint64_t N = 10000;
+    std::vector<uint32_t> x(N), y(N), x1(N), x2(N), x3(N), y1(N), y2(N), y3(N);
+
+    // Fill the array with some values
+    for (int i = 0; i < N; i++) {
+        x[i] = rand() % (1 << 15) - 1;
+        y[i] = rand() % (1 << 15) - 1;
+
+        std::vector<std::pair<int64_t, int64_t>> x_i_shares = gen_shares(3, 2, x[i], PP);
+        std::vector<std::pair<int64_t, int64_t>> y_i_shares = gen_shares(3, 2, y[i], PP);
+
+        x1[i] = x_i_shares[0].second;
+        x2[i] = x_i_shares[1].second;
+        x3[i] = x_i_shares[2].second;
+
+        y1[i] = y_i_shares[0].second;
+        y2[i] = y_i_shares[1].second;
+        y3[i] = y_i_shares[2].second;
+    }
+
+    auto product_share1 = PIRW::innerprodff31(x1, y1);
+    auto product_share2 = PIRW::innerprodff31(x2, y2);
+    auto product_share3 = PIRW::innerprodff31(x3, y3);
+    auto product = PIRW::innerprodff31(x, y);
+
+    auto shares = encode_to_shares({
+                                           product_share1,
+                                           product_share2,
+                                           product_share3
+                                   });
+    auto xy = recover_secret(shares, PP);
+    assert(xy == product);
+    std::cout << "Inner product works! " << std::endl;
+}
+
 int main(int argc, char** argv) {
 
     if(argc != 2) {
@@ -329,6 +365,8 @@ int main(int argc, char** argv) {
 
     // Benchmark mersenne modulus
     benchmark_mersenne();
+
+    test_sumproduct();
 
     return 0;
 }

@@ -56,11 +56,13 @@ namespace PIRW {
         #pragma omp parallel for reduction(+:inner_product) num_threads(16)
         for (size_t i = 0; i < a.size(); i++)
         {
-            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
+//            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
+            uint64_t tmp = (static_cast<int64_t>(a[i]) * b[i]) % PP;
             inner_product += tmp;
         }
 
-        return modmersenne31(inner_product);
+        return inner_product % PP;
+//        return modmersenne31(inner_product);
     }
 
 
