@@ -10,12 +10,18 @@
 #include <fstream>
 #include <cstdlib>
 #include <ctime>
+#include <filesystem>
 
 Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alphas(N) {
     log2N = static_cast<int>(std::log2(N));
 
-    std::ifstream ledgerFile("data/ledger-" + std::to_string(server_index) + ".txt");
-    std::ifstream alphasFile("data/alphas-" + std::to_string(server_index) + ".txt");
+    std::ifstream ledgerFile("data/ledger-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream alphasFile("data/alphas-" + std::to_string(server_index + 1) + ".txt");
+
+    // If any file doesn't exist, call initData
+    if (!ledgerFile || !alphasFile) {
+        initData(N);
+    }
 
     // Load ledger if file exists
     if (ledgerFile) {
@@ -30,10 +36,6 @@ Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alph
             alphasFile >> alpha;
         }
         alphasFile.close();
-    }
-    // If any file doesn't exist, call initData
-    if (!ledgerFile || !alphasFile) {
-        initData(N);
     }
 }
 
@@ -75,6 +77,10 @@ void Server::initData(size_t N) {
 }
 
 void Server::saveToFile(const std::vector<uint32_t>& data, const std::string& filename) {
+    if (!std::filesystem::exists("data")) {
+        std::filesystem::create_directory("data");
+    }
+
     std::ofstream outFile(filename);
     for (const auto &value : data) {
         outFile << value << std::endl;

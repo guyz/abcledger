@@ -95,7 +95,7 @@ namespace PIRW {
 
         // Compute the inner product of the two vectors by summing the
         // products of the corresponding elements of a and b
-        #pragma omp parallel for reduction(+:inner_product) num_threads(16)
+//        #pragma omp parallel for reduction(+:inner_product) num_threads(16)
         for (size_t i = 0; i < a.size(); i++)
         {
             result += a[i];

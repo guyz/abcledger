@@ -1,6 +1,6 @@
 #include "dpf.h"
 #include "pirw.h"
-
+#include "Server.h"
 #include <chrono>
 #include <iostream>
 #include <cassert>
@@ -123,13 +123,7 @@ void test_sumproduct() {
     std::cout << "Inner product works! " << std::endl;
 }
 
-int main(int argc, char** argv) {
-
-    if(argc != 2) {
-	    std::cout << "Usage: ./dpf_pir <log_tree_size>" << std::endl;
-        return -1;
-    }
-    size_t N = std::strtoull(argv[1], nullptr, 10);
+int run_playground_tests(int N) {
     std::chrono::duration<double> buildT, evalT1, evalT2, evalT3;
     size_t keysizeT = 0;
     buildT = evalT1 = evalT2 = evalT3 = std::chrono::duration<double>::zero();
@@ -363,10 +357,35 @@ int main(int argc, char** argv) {
     int s1 = recover_secret(shares, p);
     std::cout << s1 << " is the reconstructed secret " << std::endl;
 
-    // Benchmark mersenne modulus
-    benchmark_mersenne();
+}
 
-    test_sumproduct();
+void test_server() {
+    int serverIndex = 0; // Replace with the desired server index
+    size_t N = 1024;     // Replace with the desired value of N
+
+    Server server(serverIndex, N);
+    auto kms1 = DPF::GenShamir(15, 10, 150);
+    auto kms2 = DPF::GenShamir(20, 10, 300);
+
+    server.transfer(kms1[0], kms2[0], 54);
+    std::cout << "Done" << std::endl;
+
+}
+
+int main(int argc, char** argv) {
+
+    if(argc != 2) {
+	    std::cout << "Usage: ./dpf_pir <log_tree_size>" << std::endl;
+        return -1;
+    }
+    size_t N = std::strtoull(argv[1], nullptr, 10);
+
+//    int x = run_playground_tests(N); // misc tests
+    // Benchmark mersenne modulus
+//    benchmark_mersenne();
+//    test_sumproduct();
+
+    test_server();
 
     return 0;
 }
