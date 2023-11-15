@@ -10,6 +10,13 @@
 #include <fstream>
 #include <cstdlib>
 #include <ctime>
+#include "utils.h"
+#include "shamir.h"
+#include "dpf.h"
+#include "pirw.h"
+#include <fstream>
+#include <cstdlib>
+#include <ctime>
 #include <filesystem>
 
 Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alphas(N) {
@@ -37,6 +44,127 @@ Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alph
         }
         alphasFile.close();
     }
+
+    // Connect to the other servers
+    initNetworking();
+}
+
+void Server::initNetworking() {
+    startListening();
+    establishConnections();
+    acceptConnections();
+}
+
+void Server::startListening() {
+    serverSocket = socket(AF_INET, SOCK_STREAM, 0);
+    if (serverSocket == -1) {
+        std::cerr << "Failed to create socket" << std::endl;
+        exit(1);
+    }
+
+    struct sockaddr_in address;
+    address.sin_family = AF_INET;
+    address.sin_addr.s_addr = INADDR_ANY;
+    address.sin_port = htons(10000 + server_index);
+
+    if (bind(serverSocket, (struct sockaddr*)&address, sizeof(address)) < 0) {
+        std::cerr << "Bind failed" << std::endl;
+        exit(2);
+    }
+
+    if (listen(serverSocket, 3) < 0) {
+        std::cerr << "Listen failed" << std::endl;
+        exit(3);
+    }
+}
+
+void Server::establishConnections() {
+    struct sockaddr_in serv_addr;
+    memset(&serv_addr, '0', sizeof(serv_addr));
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(10000); // Base port number
+
+    if (server_index > 0) {
+        std::cout << "Server" << server_index << " is trying to connect to Server0" << std::endl;
+        serv_addr.sin_port = htons(10000);
+        connectionHandler1 = socket(AF_INET, SOCK_STREAM, 0);
+        if (connectionHandler1 < 0) {
+            std::cerr << "Socket creation error" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        if (connect(connectionHandler1, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+            std::cerr << "Connection Failed to Server 0" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        std::cout << "Successfully connected!" << std::endl;
+    }
+
+    if (server_index > 1) {
+        std::cout << "Server" << server_index << " is trying to connect to Server1" << std::endl;
+        serv_addr.sin_port = htons(10001);
+        connectionHandler2 = socket(AF_INET, SOCK_STREAM, 0);
+        if (connectionHandler2 < 0) {
+            std::cerr << "Socket creation error" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+
+        if (connect(connectionHandler2, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+            std::cerr << "Connection Failed to Server 1" << std::endl;
+            exit(EXIT_FAILURE);
+        }
+        std::cout << "Successfully connected!" << std::endl;
+    }
+}
+
+void Server::acceptConnections() {
+    if (server_index < 2) {
+        struct sockaddr_in clientAddr;
+        socklen_t clientLen = sizeof(clientAddr);
+        std::cout << "Server" << server_index << " is waiting for a connection" << std::endl;
+        connectionHandler1 = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
+        if (connectionHandler1 < 0) {
+            std::cerr << "Failed to accept connection" << std::endl;
+            exit(4);
+        }
+        std::cout << "Connection made!" << std::endl;
+    }
+
+    if (server_index < 1) {
+        struct sockaddr_in clientAddr;
+        socklen_t clientLen = sizeof(clientAddr);
+        std::cout << "Server" << server_index << " is waiting for a connection" << std::endl;
+        connectionHandler2 = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
+        if (connectionHandler2 < 0) {
+            std::cerr << "Failed to accept connection" << std::endl;
+            exit(5);
+        }
+        std::cout << "Second connection made!" << std::endl;
+    }
+}
+
+// Serialize three uint32_t values into a binary string
+std::string Server::serializeData(uint32_t a, uint32_t b, uint32_t c) {
+    std::string data;
+    data.resize(12); // Each uint32_t will take 4 bytes
+
+    std::memcpy(&data[0], &a, 4);
+    std::memcpy(&data[4], &b, 4);
+    std::memcpy(&data[8], &c, 4);
+
+    return data;
+}
+
+// Deserialize a binary string into three uint32_t values
+std::tuple<uint32_t, uint32_t, uint32_t> Server::deserializeData(const std::string& data) {
+    uint32_t a, b, c;
+
+    std::memcpy(&a, &data[0], 4);
+    std::memcpy(&b, &data[4], 4);
+    std::memcpy(&c, &data[8], 4);
+
+    return std::make_tuple(a, b, c);
 }
 
 void Server::initData(size_t N) {
@@ -108,7 +236,23 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     uint32_t balance_A = PIRW::innerprodff31(data_A, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
     uint32_t new_balance_A = (balance_A - amount_A) % PP;
 
+
     // TODO: run the following checks in MPC
+    std::string dataToSend = serializeData(amount_A, amount_B, new_balance_A);
+
+    // Send data to other servers
+    send(connectionHandler1, dataToSend.c_str(), dataToSend.size(), 0);
+    send(connectionHandler2, dataToSend.c_str(), dataToSend.size(), 0);
+
+    // Receive data from other servers
+    char buffer[1024] = {0};
+    recv(connectionHandler1, buffer, 1024, 0);
+    auto [amount_A_from_server1, amount_B_from_server1, new_balance_A_from_server1] = deserializeData(std::string(buffer));
+
+    memset(buffer, 0, sizeof(buffer)); // Clear the buffer
+    recv(connectionHandler2, buffer, 1024, 0);
+    auto [amount_A_from_server2, amount_B_from_server2, new_balance_A_from_server2] = deserializeData(std::string(buffer));
+
     // 1. use tag_share_prime and whatever else is needed to verify access control/proper DPF to data_A, data_A1, data_B
     // 2. Open(amount_A-amount_B) and make sure it is zero. Need to show in the proof that this works later, but generally speaking the idea is we don't need an equality gate - just public open
     // 3. Check that LTZ(amount_A) == false and LTZ(amount_A - MAX_VALUE) == true // This checks that amount_A is in [0, MAX_VALUE). Assume that MAX_VALUE is greater than all the coins in the system ever..

@@ -10,6 +10,12 @@
 #include <utility>
 #include <string>
 #include <cmath>
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#include <unistd.h>
+#include <cstring>
+#include <iostream>
 
 class Server {
 public:
@@ -25,6 +31,18 @@ private:
     int server_index;
     std::vector<uint32_t> ledger;
     std::vector<uint32_t> alphas;
+
+    int serverSocket;
+    int connectionHandler1;
+    int connectionHandler2;
+
+    // Networking
+    void initNetworking();
+    void startListening();
+    void establishConnections();
+    void acceptConnections();
+    std::string serializeData(uint32_t a, uint32_t b, uint32_t c);
+    std::tuple<uint32_t, uint32_t, uint32_t> deserializeData(const std::string& data);
 
     void initData(size_t N);
     void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);

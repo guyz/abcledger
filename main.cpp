@@ -359,33 +359,37 @@ int run_playground_tests(int N) {
 
 }
 
-void test_server() {
-    int serverIndex = 0; // Replace with the desired server index
-    size_t N = 1024;     // Replace with the desired value of N
+void test_server(int serverIndex, int logN) {
+    int N = 1 << logN;
 
     Server server(serverIndex, N);
-    auto kms1 = DPF::GenShamir(15, 10, 150);
-    auto kms2 = DPF::GenShamir(20, 10, 300);
 
-    server.transfer(kms1[0], kms2[0], 54);
+    auto kms1 = DPF::GenShamir(15, logN, 150);
+    auto kms2 = DPF::GenShamir(20, logN, 300);
+    uint32_t tag_share = 54;
+
+    // Call the transfer function
+    server.transfer(kms1[0], kms2[0], tag_share); //TODO: index to kms1, kms2 based on server_index
+
     std::cout << "Done" << std::endl;
-
 }
 
 int main(int argc, char** argv) {
 
-    if(argc != 2) {
-	    std::cout << "Usage: ./dpf_pir <log_tree_size>" << std::endl;
+    if(argc != 3) {
+	    std::cout << "Usage: ./dpf_pir <server_index> <log_tree_size>" << std::endl;
         return -1;
     }
-    size_t N = std::strtoull(argv[1], nullptr, 10);
+
+    int serverIndex = std::atoi(argv[1]);
+    size_t N = std::strtoull(argv[2], nullptr, 10);
 
 //    int x = run_playground_tests(N); // misc tests
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
 //    test_sumproduct();
 
-    test_server();
+    test_server(serverIndex, N);
 
     return 0;
 }

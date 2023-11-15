@@ -4,6 +4,21 @@ cmake_minimum_required(VERSION 3.4.1)
 enable_language(C CXX)
 set(CMAKE_CXX_STANDARD 17)
 
+# First, try to find Boost in the Homebrew location
+#set(BOOST_ROOT "/opt/homebrew/Cellar/boost/1.83.0")
+#find_package(Boost 1.83.0 QUIET)
+# If that fails, try the standard location for Boost 1.71
+
+set(BOOST_ROOT "/usr") # Standard location for Boost
+find_package(Boost 1.71.0 REQUIRED)
+
+if(NOT Boost_FOUND)
+    message(FATAL_ERROR "Boost not found")
+endif()
+include_directories("/usr/include")
+include_directories("/usr/include/boost")
+
+include_directories(${Boost_INCLUDE_DIRS})
 
 set(SRCS
         AES.cpp
@@ -25,7 +40,7 @@ SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O2 -g -ggdb -rdynamic")
 SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
 #SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
 
-add_executable(dpf_pir ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h Server.cpp Server.h)
+add_executable(dpf_pir ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h Server.cpp Server.h CommunicationHandler.cpp CommunicationHandler.h)
 target_link_libraries(dpf_pir crypto)
 target_link_libraries(dpf_pir sss)
 #target_link_options(dpf_pir PRIVATE -fopenmp)
