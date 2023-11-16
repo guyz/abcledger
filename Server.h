@@ -48,6 +48,11 @@ private:
 
     void initData(size_t N);
     void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
+
+    void localMPCChecks(uint32_t amount_A1, uint32_t amount_A2, uint32_t amount_A3,
+                                uint32_t amount_B1, uint32_t amount_B2, uint32_t amount_B3,
+                                uint32_t new_balance_A1, uint32_t new_balance_A2, uint32_t new_balance_A3
+    );
 };
 
 

@@ -18,6 +18,7 @@
 #include <cstdlib>
 #include <ctime>
 #include <filesystem>
+#include <cassert>
 
 Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alphas(N) {
     log2N = static_cast<int>(std::log2(N));
@@ -263,6 +264,46 @@ bool Server::waitForAck(int socket) {
     return std::string(ackBuffer) == "ack";
 }
 
+void Server::localMPCChecks(uint32_t amount_A1, uint32_t amount_A2, uint32_t amount_A3,
+                            uint32_t amount_B1, uint32_t amount_B2, uint32_t amount_B3,
+                            uint32_t new_balance_A1, uint32_t new_balance_A2, uint32_t new_balance_A3
+                            ) {
+    // TODO: Secure these tests, right now they are in plaintext
+    auto amount_A_shares = encode_to_shares({
+        amount_A1,
+        amount_A2,
+        amount_A3
+    });
+
+    auto amount_B_shares = encode_to_shares({
+        amount_B1,
+        amount_B2,
+        amount_B3
+    });
+
+    auto new_balance_A_shares = encode_to_shares({
+        new_balance_A1,
+        new_balance_A2,
+        new_balance_A3
+    });
+
+    auto amount_A = recover_secret(amount_A_shares, PP);
+    auto amount_B = recover_secret(amount_B_shares, PP);
+    auto new_balance_A = recover_secret(new_balance_A_shares, PP);
+
+    // TODO: missing tests (and obviously MPCize tests..) - like access control / valid DPF stuff..
+
+    // amount_A and amount_B are the same
+    assert( (amount_A - amount_B) == 0);
+
+    // amount_A in range
+    assert( (amount_A < 0) == false && ((amount_A - (1 << (31 - 1)) ) < 0) == true);
+
+    // new balance is not negative
+    assert( (new_balance_A < 0) == false);
+
+}
+
 void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
                       const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
                       uint32_t tag_share) {
@@ -270,6 +311,7 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     // TODO: could/should be parallelized?
     auto data_A = DPF::EvalShamir(key_A, log2N, server_index); // TODO: get and check data_A1 from this..
     auto data_B = DPF::EvalShamir(key_B, log2N, server_index);
+    std::cout << "A[0]: " << data_A[0] << std::endl;
 
     // Prepare Validity check
     // TODO: VerifyDPF for data_B
@@ -282,7 +324,6 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     uint32_t balance_A = PIRW::innerprodff31(data_A, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
     uint32_t new_balance_A = (balance_A - amount_A) % PP;
 
-
     // TODO: run the following checks in MPC
     std::string dataToSend = serializeData(amount_A, amount_B, new_balance_A);
 
@@ -294,7 +335,6 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
 
     // Receive data from other servers
     char buffer[1024] = {0};
-//    recv(connectionHandler1, buffer, 1024, 0);
     if (receiveFully(connectionHandler1, buffer, 12) <= 0) { // Assuming 12 bytes is the size of your data
         std::cerr << "Failed to receive data from server 1" << std::endl;
         // Handle error
@@ -309,7 +349,6 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
         // Handle error
     }
 
-//    recv(connectionHandler2, buffer, 1024, 0);
     auto [amount_A_from_server2, amount_B_from_server2, new_balance_A_from_server2] = deserializeData(std::string(buffer));
     std::cout << "Server" << server_index << " received: " << amount_A_from_server2 << ", " << amount_B_from_server2 << ", " << new_balance_A_from_server2 << std::endl;
 

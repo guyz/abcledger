@@ -11,6 +11,12 @@
 #include "utils.h"
 #include <cstdlib>
 #include <random>
+#include <fstream>
+#include <vector>
+#include <cstdint>
+#include <filesystem>
+#include <string>
+
 
 inline __m256i mul256(__m256i x1, __m256i x2) {
     return _mm256_mullo_epi64(x1, x2);
@@ -359,6 +365,105 @@ int run_playground_tests(int N) {
 
 }
 
+// TODO: refactor...
+void writeVector(int index, const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& kms, std::string filename) {
+    std::ofstream outFile("data/" + filename + std::to_string(index) + ".txt");
+    for (const auto& p : kms) {
+        outFile << p.first << " ";
+        for (uint8_t byte : p.second) {
+            outFile << std::to_string(byte) << " ";
+        }
+        outFile << "\n";
+    }
+    outFile.close();
+}
+
+std::vector<std::pair<uint32_t, std::vector<uint8_t>>> loadVector(int index, std::string filename) {
+    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kms;
+    std::ifstream inFile("data/" + filename + std::to_string(index) + ".txt");
+    uint32_t first;
+    uint8_t byte;
+    std::string line;
+
+    while (std::getline(inFile, line)) {
+        std::istringstream lineStream(line);
+        lineStream >> first;
+        std::vector<uint8_t> bytes;
+        while (lineStream >> byte) {
+            bytes.push_back(byte);
+        }
+        kms.emplace_back(first, bytes);
+    }
+    inFile.close();
+    return kms;
+}
+
+bool fileExists(const std::string& fileName) {
+    return std::filesystem::exists(fileName);
+}
+
+void test_client(int serverIndex, int logN) {
+    int N = 1 << logN;
+    int amount = 7;
+    int senderIndex = 15;
+    int recvIndex = 20;
+    uint64_t alpha = 1365547451;
+
+    // Load/generate data
+    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsA_i; //TODO: use logical index..
+    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsB_i; //TODO: use logical index..
+
+    auto kmsA = DPF::GenShamir(senderIndex, logN, amount);
+    auto kmsB = DPF::GenShamir(recvIndex, logN, amount);
+
+    if (fileExists("data/kmsA" + std::to_string(serverIndex) + ".txt")) {
+        kmsA_i = loadVector(serverIndex, "kmsA");
+        kmsB_i = loadVector(serverIndex, "kmsB");
+    } else {
+        // File does not exist
+        for (size_t i = 0; i < kmsA.size(); ++i) {
+            writeVector(i, kmsA[i], "kmsA");
+            writeVector(i, kmsB[i], "kmsB");
+        }
+
+        kmsA_i = kmsA[serverIndex];
+        kmsB_i = kmsA[serverIndex];
+    }
+
+    uint32_t tag_share = (alpha*amount) % PP; // TODO: shamir share this..
+
+    // TODO: remove temp
+    auto vmsA1 = DPF::EvalShamir(loadVector(0, "kmsA"), logN, 0);
+    auto vmsA2 = DPF::EvalShamir(loadVector(1, "kmsA"), logN, 1);
+    auto vmsA3 = DPF::EvalShamir(loadVector(2, "kmsA"), logN, 2);
+
+    auto vmsA1v2 = DPF::EvalShamir(loadVector(0, "kmsA"), logN, 0);
+    auto vmsA2v2 = DPF::EvalShamir(loadVector(1, "kmsA"), logN, 1);
+    auto vmsA3v2 = DPF::EvalShamir(loadVector(2, "kmsA"), logN, 2);
+
+    auto tmpres = encode_to_shares({
+                                           vmsA1[0],
+                                           vmsA2[0],
+                                           vmsA3[0]
+                                   });
+    auto tmpresres = recover_secret(tmpres, PP);
+
+    auto tmpres2 = encode_to_shares({
+                                           vmsA1v2[0],
+                                           vmsA2v2[0],
+                                           vmsA3v2[0]
+                                   });
+    auto tmpresres2 = recover_secret(tmpres, PP);
+    std::cout << "Recovered the first value: " << tmpresres << std::endl;
+    std::cout << "Recovered the first value2: " << tmpresres2 << std::endl;
+
+    // Call the transfer function
+    Server server(serverIndex, N);
+    server.transfer(kmsA_i, kmsB_i, tag_share);
+
+    std::cout << "Done" << std::endl;
+}
+
 void test_server(int serverIndex, int logN) {
     int N = 1 << logN;
 
@@ -389,7 +494,8 @@ int main(int argc, char** argv) {
 //    benchmark_mersenne();
 //    test_sumproduct();
 
-    test_server(serverIndex, N);
+//    test_server(serverIndex, N);
+    test_client(serverIndex, N);
 
     return 0;
 }
