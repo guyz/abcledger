@@ -41,6 +41,8 @@ private:
     void startListening();
     void establishConnections();
     void acceptConnections();
+    void closeConnections();
+    bool waitForAck(int socket);
     std::string serializeData(uint32_t a, uint32_t b, uint32_t c);
     std::tuple<uint32_t, uint32_t, uint32_t> deserializeData(const std::string& data);
 

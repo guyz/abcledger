@@ -85,6 +85,12 @@ void Server::establishConnections() {
     serv_addr.sin_family = AF_INET;
     serv_addr.sin_port = htons(10000); // Base port number
 
+    // Set the IP address of the server
+    if (inet_pton(AF_INET, "127.0.0.1", &serv_addr.sin_addr) <= 0) {
+        std::cerr << "Invalid address/ Address not supported" << std::endl;
+        exit(EXIT_FAILURE);
+    }
+
     if (server_index > 0) {
         std::cout << "Server" << server_index << " is trying to connect to Server0" << std::endl;
         serv_addr.sin_port = htons(10000);
@@ -123,8 +129,8 @@ void Server::acceptConnections() {
         struct sockaddr_in clientAddr;
         socklen_t clientLen = sizeof(clientAddr);
         std::cout << "Server" << server_index << " is waiting for a connection" << std::endl;
-        connectionHandler1 = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
-        if (connectionHandler1 < 0) {
+        connectionHandler2 = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
+        if (connectionHandler2 < 0) {
             std::cerr << "Failed to accept connection" << std::endl;
             exit(4);
         }
@@ -135,12 +141,25 @@ void Server::acceptConnections() {
         struct sockaddr_in clientAddr;
         socklen_t clientLen = sizeof(clientAddr);
         std::cout << "Server" << server_index << " is waiting for a connection" << std::endl;
-        connectionHandler2 = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
-        if (connectionHandler2 < 0) {
+        connectionHandler1 = accept(serverSocket, (struct sockaddr*)&clientAddr, &clientLen);
+        if (connectionHandler1 < 0) {
             std::cerr << "Failed to accept connection" << std::endl;
             exit(5);
         }
         std::cout << "Second connection made!" << std::endl;
+    }
+}
+
+// New method to close connections
+void Server::closeConnections() {
+    if (connectionHandler1 >= 0) {
+        close(connectionHandler1);
+    }
+    if (connectionHandler2 >= 0) {
+        close(connectionHandler2);
+    }
+    if (serverSocket >= 0) {
+        close(serverSocket);
     }
 }
 
@@ -216,6 +235,33 @@ void Server::saveToFile(const std::vector<uint32_t>& data, const std::string& fi
     outFile.close();
 }
 
+// Helper function to receive the specified amount of data
+ssize_t receiveFully(int socket, char *buffer, size_t length) {
+    size_t totalReceived = 0;
+    ssize_t bytesReceived;
+
+    while (totalReceived < length) {
+        bytesReceived = recv(socket, buffer + totalReceived, length - totalReceived, 0);
+
+        if (bytesReceived <= 0) {
+            // Handle error or closed connection
+            return bytesReceived;
+        }
+
+        totalReceived += bytesReceived;
+    }
+
+    return totalReceived;
+}
+
+// Helper function to wait for acknowledgement
+bool Server::waitForAck(int socket) {
+    char ackBuffer[4] = {0};  // Buffer to store ack
+    if (receiveFully(socket, ackBuffer, 3) <= 0) {
+        return false;
+    }
+    return std::string(ackBuffer) == "ack";
+}
 
 void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
                       const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
@@ -244,14 +290,28 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     send(connectionHandler1, dataToSend.c_str(), dataToSend.size(), 0);
     send(connectionHandler2, dataToSend.c_str(), dataToSend.size(), 0);
 
+    std::cout << "Server" << server_index << " has sent: " << amount_A << ", " << amount_B << ", " << new_balance_A << std::endl;
+
     // Receive data from other servers
     char buffer[1024] = {0};
-    recv(connectionHandler1, buffer, 1024, 0);
+//    recv(connectionHandler1, buffer, 1024, 0);
+    if (receiveFully(connectionHandler1, buffer, 12) <= 0) { // Assuming 12 bytes is the size of your data
+        std::cerr << "Failed to receive data from server 1" << std::endl;
+        // Handle error
+    }
+
     auto [amount_A_from_server1, amount_B_from_server1, new_balance_A_from_server1] = deserializeData(std::string(buffer));
+    std::cout << "Server" << server_index << " received: " << amount_A_from_server1 << ", " << amount_B_from_server1 << ", " << new_balance_A_from_server1 << std::endl;
 
     memset(buffer, 0, sizeof(buffer)); // Clear the buffer
-    recv(connectionHandler2, buffer, 1024, 0);
+    if (receiveFully(connectionHandler2, buffer, 12) <= 0) { // Assuming 12 bytes is the size of your data
+        std::cerr << "Failed to receive data from server 2" << std::endl;
+        // Handle error
+    }
+
+//    recv(connectionHandler2, buffer, 1024, 0);
     auto [amount_A_from_server2, amount_B_from_server2, new_balance_A_from_server2] = deserializeData(std::string(buffer));
+    std::cout << "Server" << server_index << " received: " << amount_A_from_server2 << ", " << amount_B_from_server2 << ", " << new_balance_A_from_server2 << std::endl;
 
     // 1. use tag_share_prime and whatever else is needed to verify access control/proper DPF to data_A, data_A1, data_B
     // 2. Open(amount_A-amount_B) and make sure it is zero. Need to show in the proof that this works later, but generally speaking the idea is we don't need an equality gate - just public open
@@ -261,6 +321,8 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     // Finalize the transaction after the MPC round / all checks have passed
     ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
     ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
+
+//    closeConnections();
 }
 
 uint32_t Server::balance(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, uint32_t tag_share) {
