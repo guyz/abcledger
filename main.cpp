@@ -366,36 +366,42 @@ int run_playground_tests(int N) {
 }
 
 // TODO: refactor...
-void writeVector(int index, const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& kms, std::string filename) {
-    std::ofstream outFile("data/" + filename + std::to_string(index) + ".txt");
-    for (const auto& p : kms) {
-        outFile << p.first << " ";
-        for (uint8_t byte : p.second) {
-            outFile << std::to_string(byte) << " ";
-        }
-        outFile << "\n";
+// Serialize
+void serialize(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& data, const std::string& filename) {
+    std::ofstream out(filename, std::ios::binary);
+    for (const auto& pair : data) {
+        out.write(reinterpret_cast<const char*>(&pair.first), sizeof(pair.first));
+        uint32_t size = pair.second.size();
+        out.write(reinterpret_cast<const char*>(&size), sizeof(size));
+        out.write(reinterpret_cast<const char*>(pair.second.data()), size);
     }
-    outFile.close();
+    out.close();
+}
+
+// Unserialize
+std::vector<std::pair<uint32_t, std::vector<uint8_t>>> unserialize(const std::string& filename) {
+    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> data;
+    std::ifstream in(filename, std::ios::binary);
+    while (!in.eof()) {
+        uint32_t first;
+        uint32_t size;
+        in.read(reinterpret_cast<char*>(&first), sizeof(first));
+        in.read(reinterpret_cast<char*>(&size), sizeof(size));
+        std::vector<uint8_t> second(size);
+        in.read(reinterpret_cast<char*>(second.data()), size);
+        data.emplace_back(first, second);
+    }
+    in.close();
+    return data;
+}
+
+
+void writeVector(int index, const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& kms, std::string filename) {
+    serialize(kms, "data/" + filename + std::to_string(index) + ".txt");
 }
 
 std::vector<std::pair<uint32_t, std::vector<uint8_t>>> loadVector(int index, std::string filename) {
-    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kms;
-    std::ifstream inFile("data/" + filename + std::to_string(index) + ".txt");
-    uint32_t first;
-    uint8_t byte;
-    std::string line;
-
-    while (std::getline(inFile, line)) {
-        std::istringstream lineStream(line);
-        lineStream >> first;
-        std::vector<uint8_t> bytes;
-        while (lineStream >> byte) {
-            bytes.push_back(byte);
-        }
-        kms.emplace_back(first, bytes);
-    }
-    inFile.close();
-    return kms;
+    return unserialize("data/" + filename + std::to_string(index) + ".txt");
 }
 
 bool fileExists(const std::string& fileName) {
@@ -410,8 +416,8 @@ void test_client(int serverIndex, int logN) {
     uint64_t alpha = 1365547451;
 
     // Load/generate data
-    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsA_i; //TODO: use logical index..
-    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsB_i; //TODO: use logical index..
+    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsA_i;
+    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsB_i;
 
     auto kmsA = DPF::GenShamir(senderIndex, logN, amount);
     auto kmsB = DPF::GenShamir(recvIndex, logN, amount);
@@ -433,13 +439,14 @@ void test_client(int serverIndex, int logN) {
     uint32_t tag_share = (alpha*amount) % PP; // TODO: shamir share this..
 
     // TODO: remove temp
-    auto vmsA1 = DPF::EvalShamir(loadVector(0, "kmsA"), logN, 0);
+    auto loadedKMSA1 = loadVector(0, "kmsA");
+    auto vmsA1 = DPF::EvalShamir(loadedKMSA1, logN, 0);
     auto vmsA2 = DPF::EvalShamir(loadVector(1, "kmsA"), logN, 1);
     auto vmsA3 = DPF::EvalShamir(loadVector(2, "kmsA"), logN, 2);
 
-    auto vmsA1v2 = DPF::EvalShamir(loadVector(0, "kmsA"), logN, 0);
-    auto vmsA2v2 = DPF::EvalShamir(loadVector(1, "kmsA"), logN, 1);
-    auto vmsA3v2 = DPF::EvalShamir(loadVector(2, "kmsA"), logN, 2);
+    auto vmsA1v2 = DPF::EvalShamir(kmsA[0], logN, 0);
+    auto vmsA2v2 = DPF::EvalShamir(kmsA[1], logN, 1);
+    auto vmsA3v2 = DPF::EvalShamir(kmsA[2], logN, 2);
 
     auto tmpres = encode_to_shares({
                                            vmsA1[0],
@@ -453,7 +460,7 @@ void test_client(int serverIndex, int logN) {
                                            vmsA2v2[0],
                                            vmsA3v2[0]
                                    });
-    auto tmpresres2 = recover_secret(tmpres, PP);
+    auto tmpresres2 = recover_secret(tmpres2, PP);
     std::cout << "Recovered the first value: " << tmpresres << std::endl;
     std::cout << "Recovered the first value2: " << tmpresres2 << std::endl;
 
