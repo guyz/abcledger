@@ -82,6 +82,7 @@ namespace PIRW {
 //            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
             uint64_t tmp = (static_cast<int64_t>(a[i]) * b[i]) % PP;
             inner_product += tmp;
+//            inner_product = (inner_product + tmp) % PP;
         }
 
         return inner_product % PP;

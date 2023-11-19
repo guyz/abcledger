@@ -411,7 +411,7 @@ bool fileExists(const std::string& fileName) {
 void test_client(int serverIndex, int logN) {
     int N = 1 << logN;
     int amount = 7;
-    int senderIndex = 15;
+    int senderIndex = 0;
     int recvIndex = 20;
     uint64_t alpha = 1365547451;
 
@@ -439,30 +439,91 @@ void test_client(int serverIndex, int logN) {
     uint32_t tag_share = (alpha*amount) % PP; // TODO: shamir share this..
 
     // TODO: remove temp
-    auto loadedKMSA1 = loadVector(0, "kmsA");
-    auto vmsA1 = DPF::EvalShamir(loadedKMSA1, logN, 0);
-    auto vmsA2 = DPF::EvalShamir(loadVector(1, "kmsA"), logN, 1);
-    auto vmsA3 = DPF::EvalShamir(loadVector(2, "kmsA"), logN, 2);
-
-    auto vmsA1v2 = DPF::EvalShamir(kmsA[0], logN, 0);
-    auto vmsA2v2 = DPF::EvalShamir(kmsA[1], logN, 1);
-    auto vmsA3v2 = DPF::EvalShamir(kmsA[2], logN, 2);
-
-    auto tmpres = encode_to_shares({
-                                           vmsA1[0],
-                                           vmsA2[0],
-                                           vmsA3[0]
-                                   });
-    auto tmpresres = recover_secret(tmpres, PP);
-
-    auto tmpres2 = encode_to_shares({
-                                           vmsA1v2[0],
-                                           vmsA2v2[0],
-                                           vmsA3v2[0]
-                                   });
-    auto tmpresres2 = recover_secret(tmpres2, PP);
-    std::cout << "Recovered the first value: " << tmpresres << std::endl;
-    std::cout << "Recovered the first value2: " << tmpresres2 << std::endl;
+//    std::vector<std::vector<uint32_t>> ledgers(4);  // Create a vector of 3 vectors
+//
+//    for (int j = 0; j < 4; j++) {
+//        std::ifstream ledgerFile;
+//
+//        // Choose file based on the value of j
+//        if (j < 3) {
+//            ledgerFile.open("data/ledger-" + std::to_string(j + 1) + ".txt");
+//        } else {  // When j == 3
+//            ledgerFile.open("data/ledger.txt");
+//        }
+//
+//        // Load ledger if file exists
+//        if (ledgerFile) {
+//            uint32_t value;
+//            while (ledgerFile >> value) {
+//                ledgers[j].push_back(value);
+//            }
+//            ledgerFile.close();
+//        }
+//    }
+//
+//    std::cout << "ledger value: " <<  ledgers[3][senderIndex] << std::endl;
+//    std::cout << "ledger1 value: " <<  ledgers[0][senderIndex] << std::endl;
+//    std::cout << "ledger2 value: " <<  ledgers[1][senderIndex] << std::endl;
+//    std::cout << "ledger3 value: " <<  ledgers[2][senderIndex] << std::endl;
+//    auto ledgervalueshares = encode_to_shares({
+//                                                ledgers[0][senderIndex],
+//                                                ledgers[1][senderIndex],
+//                                                ledgers[2][senderIndex]
+//                                    });
+//    auto ledgervalue = recover_secret(ledgervalueshares, PP);
+//    std::cout << "ledger reconstructed: " << ledgervalue << std::endl;
+//
+//    auto loadedKMSA1 = loadVector(0, "kmsA");
+//    auto vmsA1 = DPF::EvalShamir(loadedKMSA1, logN, 0);
+//    auto vmsA2 = DPF::EvalShamir(loadVector(1, "kmsA"), logN, 1);
+//    auto vmsA3 = DPF::EvalShamir(loadVector(2, "kmsA"), logN, 2);
+//
+//    auto vmsA1v2 = DPF::EvalShamir(kmsA[0], logN, 0);
+//    auto vmsA2v2 = DPF::EvalShamir(kmsA[1], logN, 1);
+//    auto vmsA3v2 = DPF::EvalShamir(kmsA[2], logN, 2);
+//
+//    auto tmpres = encode_to_shares({
+//                                           vmsA1[0],
+//                                           vmsA2[0],
+//                                           vmsA3[0]
+//                                   });
+//    auto tmpresres = recover_secret(tmpres, PP);
+//
+//    auto tmpres2 = encode_to_shares({
+//                                           vmsA1v2[0],
+//                                           vmsA2v2[0],
+//                                           vmsA3v2[0]
+//                                   });
+//    auto tmpresres2 = recover_secret(tmpres2, PP);
+//    std::cout << "Recovered the first value: " << tmpresres << std::endl;
+//    std::cout << "Recovered the first value2: " << tmpresres2 << std::endl;
+//    std::cout << "Ledger sizes: " << ledgers[0].size() << ", " << ledgers[1].size() << ", " << ledgers[2].size() << std::endl;
+//    std::cout << "vms sizes: " << vmsA1.size() << ", " << vmsA2.size() << ", " << vmsA3.size() << std::endl;
+//    std::cout << "vms (not disk-loaded) sizes: " << vmsA1v2.size() << ", " << vmsA2v2.size() << ", " << vmsA3v2.size() << std::endl;
+//    uint32_t balance1 = PIRW::innerprodff31(vmsA1, ledgers[0]); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
+//    uint32_t balance2 = PIRW::innerprodff31(vmsA2, ledgers[1]); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
+//    uint32_t balance3 = PIRW::innerprodff31(vmsA3, ledgers[2]); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
+//
+//    auto balanceshares = encode_to_shares({balance1, balance2, balance3});
+//    std::cout << "Balances: " << balance1 << ", " << balance2 << ", " << balance3 << std::endl;
+//    auto balance = recover_secret(balanceshares, PP);
+//    std::cout << "Balance computed: " << balance << std::endl;
+//
+//    uint32_t dpfval1 = PIRW::sumvecff31(vmsA1);
+//    uint32_t dpfval2 = PIRW::sumvecff31(vmsA2);
+//    uint32_t dpfval3 = PIRW::sumvecff31(vmsA3);
+//
+//    auto dpfvalshares = encode_to_shares({dpfval1, dpfval2, dpfval3});
+//    auto dapval = recover_secret(dpfvalshares, PP);
+//    std::cout << "DPF Value computed: " << dapval << std::endl;
+////    auto val = recover_secret(encode_to_shares({(vmsA1[0]*ledgers[0][0] % PP), (vmsA2[0]*ledgers[1][0] % PP), (vmsA3[0]*ledgers[2][0] % PP)}), PP);
+//    auto valshares = encode_to_shares({(vmsA1[0]*ledgers[0][0] % PP), (vmsA2[0]*ledgers[1][0] % PP), (vmsA3[0]*ledgers[2][0] % PP)});
+//    auto val = recover_secret(valshares, PP);
+//    std::cout << "Trying to reconstruct the first multiplicative value: " << val << std::endl;
+//    auto val2 = recover_secret(encode_to_shares({(vmsA1[0] % PP), (vmsA2[0] % PP), (vmsA3[0] % PP)}), PP);
+//    std::cout << "Trying to reconstruct the first multiplicative value2: " << val2 << std::endl;
+//    std::cout << "balance, adjusting for amount: : " << static_cast<float>(val) / amount << std::endl;
+    // end remove temp
 
     // Call the transfer function
     Server server(serverIndex, N);

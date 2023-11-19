@@ -23,6 +23,7 @@ const block ONES_block = _mm_set1_epi32(1);
 // mod 2^31 - 1
 uint32_t modmersenne31(uint32_t x);
 uint32_t modmersenne31safe64(uint64_t x); // hackish to prevent overflow when multiplying two 32-bit numbers
+int mod(int a, int b);
 
 // vectorized (4 ints) mod 2^31 - 1
 block modmersenne31block(block x);

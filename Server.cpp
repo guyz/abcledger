@@ -96,6 +96,7 @@ void Server::establishConnections() {
         std::cout << "Server" << server_index << " is trying to connect to Server0" << std::endl;
         serv_addr.sin_port = htons(10000);
         connectionHandler1 = socket(AF_INET, SOCK_STREAM, 0);
+        serverIndex1 = 0;
         if (connectionHandler1 < 0) {
             std::cerr << "Socket creation error" << std::endl;
             exit(EXIT_FAILURE);
@@ -112,6 +113,7 @@ void Server::establishConnections() {
         std::cout << "Server" << server_index << " is trying to connect to Server1" << std::endl;
         serv_addr.sin_port = htons(10001);
         connectionHandler2 = socket(AF_INET, SOCK_STREAM, 0);
+        serverIndex2 = 1;
         if (connectionHandler2 < 0) {
             std::cerr << "Socket creation error" << std::endl;
             exit(EXIT_FAILURE);
@@ -135,7 +137,13 @@ void Server::acceptConnections() {
             std::cerr << "Failed to accept connection" << std::endl;
             exit(4);
         }
-        std::cout << "Connection made!" << std::endl;
+        // NOTE: this is hacky, we assume the first connection is from server (1-->0 or 2-->1)
+        if (server_index == 0) {
+            serverIndex2 = 1;
+        } else {
+            serverIndex2 = 2;
+        }
+        std::cout << "Connection with party: " << serverIndex2 + 1 << std::endl;
     }
 
     if (server_index < 1) {
@@ -147,7 +155,9 @@ void Server::acceptConnections() {
             std::cerr << "Failed to accept connection" << std::endl;
             exit(5);
         }
-        std::cout << "Second connection made!" << std::endl;
+        // NOTE: This is hacky, we assume only server 0 gets another connection which is from server 2
+        serverIndex1 = 2;
+        std::cout << "Second connection with party: " << serverIndex1 + 1 << std::endl;
     }
 }
 
@@ -264,28 +274,17 @@ bool Server::waitForAck(int socket) {
     return std::string(ackBuffer) == "ack";
 }
 
-void Server::localMPCChecks(uint32_t amount_A1, uint32_t amount_A2, uint32_t amount_A3,
-                            uint32_t amount_B1, uint32_t amount_B2, uint32_t amount_B3,
-                            uint32_t new_balance_A1, uint32_t new_balance_A2, uint32_t new_balance_A3
-                            ) {
+void Server::localMPCChecks(std::vector<uint32_t>& amount_As, std::vector<uint32_t>& amount_Bs, std::vector<uint32_t>& new_balance_As) {
+//        uint32_t amount_A1, uint32_t amount_A2, uint32_t amount_A3,
+//                            uint32_t amount_B1, uint32_t amount_B2, uint32_t amount_B3,
+//                            uint32_t new_balance_A1, uint32_t new_balance_A2, uint32_t new_balance_A3
+//                            ) {
     // TODO: Secure these tests, right now they are in plaintext
-    auto amount_A_shares = encode_to_shares({
-        amount_A1,
-        amount_A2,
-        amount_A3
-    });
+    auto amount_A_shares = encode_to_shares(amount_As);
 
-    auto amount_B_shares = encode_to_shares({
-        amount_B1,
-        amount_B2,
-        amount_B3
-    });
+    auto amount_B_shares = encode_to_shares(amount_Bs);
 
-    auto new_balance_A_shares = encode_to_shares({
-        new_balance_A1,
-        new_balance_A2,
-        new_balance_A3
-    });
+    auto new_balance_A_shares = encode_to_shares(new_balance_As);
 
     auto amount_A = recover_secret(amount_A_shares, PP);
     auto amount_B = recover_secret(amount_B_shares, PP);
@@ -322,8 +321,8 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     uint32_t amount_A = PIRW::sumvecff31(data_A);
     uint32_t amount_B = PIRW::sumvecff31(data_B);
     uint32_t balance_A = PIRW::innerprodff31(data_A, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
-    uint32_t new_balance_A = (balance_A - amount_A) % PP;
-
+    uint32_t new_balance_A = mod(static_cast<int64_t>(balance_A) - amount_A, PP);
+    std::cout << "balance_A: " << balance_A << ", amount: " << amount_A << ", new_balance: " << new_balance_A << std::endl; // TODO : remove temp. Note, right now it's amount*balance
     // TODO: run the following checks in MPC
     std::string dataToSend = serializeData(amount_A, amount_B, new_balance_A);
 
@@ -356,6 +355,24 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     // 2. Open(amount_A-amount_B) and make sure it is zero. Need to show in the proof that this works later, but generally speaking the idea is we don't need an equality gate - just public open
     // 3. Check that LTZ(amount_A) == false and LTZ(amount_A - MAX_VALUE) == true // This checks that amount_A is in [0, MAX_VALUE). Assume that MAX_VALUE is greater than all the coins in the system ever..
     // 4. Check that LTZ(new_balance_A) == false // Make sure that this tx won't turn the balance negative
+
+    std::vector<uint32_t> amount_As = {0,0,0};
+    std::vector<uint32_t> amount_Bs = {0,0,0};
+    std::vector<uint32_t> new_balance_As = {0,0,0};
+
+    amount_As[server_index] = amount_A;
+    amount_As[serverIndex1] = amount_A_from_server1;
+    amount_As[serverIndex2] = amount_A_from_server2;
+
+    amount_Bs[server_index] = amount_B;
+    amount_Bs[serverIndex1] = amount_B_from_server1;
+    amount_Bs[serverIndex2] = amount_B_from_server2;
+
+    new_balance_As[server_index] = new_balance_A;
+    new_balance_As[serverIndex1] = new_balance_A_from_server1;
+    new_balance_As[serverIndex2] = new_balance_A_from_server2;
+
+    localMPCChecks(amount_As, amount_Bs, new_balance_As);
 
     // Finalize the transaction after the MPC round / all checks have passed
     ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize

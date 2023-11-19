@@ -31,6 +31,16 @@ uint32_t modmersenne31safe64(uint64_t x) {
     return res;
 }
 
+// Returns the 'positive mod' - i.e., what we need to operate over a field.
+// Only relevant when computing minus or sub..
+int mod(int a, int b) {
+    int result = a % b;
+    if (result < 0) {
+        result += b;
+    }
+    return result;
+}
+
 block modmersenne31block(block x) {
     // vectorized
     block x0 = _mm_srli_epi32(x, 31);

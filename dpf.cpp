@@ -845,6 +845,7 @@ namespace DPF {
         std::vector<uint8_t> dpfkey = key.second;
         auto vm = DPF::EvalFull8M(dpfkey, logn, party_index);
 
+
         // TODO: insert this into the recursive function instead of looping all values again. May help..
         for (int i = 0; i < vm.size(); i++) {
             vm[i] = z ^ vm[i];
