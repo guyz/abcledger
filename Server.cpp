@@ -7,8 +7,6 @@
 #include "shamir.h"
 #include "dpf.h"
 #include "pirw.h"
-#include <fstream>
-#include <cstdlib>
 #include <ctime>
 #include "utils.h"
 #include "shamir.h"
@@ -19,6 +17,11 @@
 #include <ctime>
 #include <filesystem>
 #include <cassert>
+
+#include <sstream>
+#include <variant>
+#include <vector>
+#include <cstring>
 
 Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alphas(N) {
     log2N = static_cast<int>(std::log2(N));
@@ -174,28 +177,7 @@ void Server::closeConnections() {
     }
 }
 
-// Serialize three uint32_t values into a binary string
-std::string Server::serializeData(uint32_t a, uint32_t b, uint32_t c) {
-    std::string data;
-    data.resize(12); // Each uint32_t will take 4 bytes
 
-    std::memcpy(&data[0], &a, 4);
-    std::memcpy(&data[4], &b, 4);
-    std::memcpy(&data[8], &c, 4);
-
-    return data;
-}
-
-// Deserialize a binary string into three uint32_t values
-std::tuple<uint32_t, uint32_t, uint32_t> Server::deserializeData(const std::string& data) {
-    uint32_t a, b, c;
-
-    std::memcpy(&a, &data[0], 4);
-    std::memcpy(&b, &data[4], 4);
-    std::memcpy(&c, &data[8], 4);
-
-    return std::make_tuple(a, b, c);
-}
 
 void Server::initData(size_t N) {
     // Seed the random number generator
@@ -303,6 +285,38 @@ void Server::localMPCChecks(std::vector<uint32_t>& amount_As, std::vector<uint32
 
 }
 
+template <typename... Args>
+std::pair<std::tuple<Args...>, std::tuple<Args...>> Server::run_round(const std::tuple<Args...>& inputs) {
+    // Serialize the data
+    std::string dataToSend = serializeData(inputs);
+
+    // Send data to other servers
+    send(connectionHandler1, dataToSend.c_str(), dataToSend.size(), 0);
+    send(connectionHandler2, dataToSend.c_str(), dataToSend.size(), 0);
+
+    // Logging sent data - optional
+    // std::apply([](const auto&... args) { ((std::cout << args << ", "), ...); }, inputs);
+    std::cout << "Server" << server_index << " has sent data." << std::endl;
+
+    // Receive data from server 1
+    char buffer1[1024] = {0};
+    if (receiveFully(connectionHandler1, buffer1, dataToSend.size()) <= 0) {
+        std::cerr << "Failed to receive data from server 1" << std::endl;
+        // Handle error
+    }
+    auto output1 = deserializeData<Args...>(std::string(buffer1, dataToSend.size()));
+
+    // Receive data from server 2
+    char buffer2[1024] = {0};
+    if (receiveFully(connectionHandler2, buffer2, dataToSend.size()) <= 0) {
+        std::cerr << "Failed to receive data from server 2" << std::endl;
+        // Handle error
+    }
+    auto output2 = deserializeData<Args...>(std::string(buffer2, dataToSend.size()));
+
+    return {output1, output2};
+}
+
 void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
                       const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
                       uint32_t tag_share) {
@@ -324,31 +338,17 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
     uint32_t new_balance_A = mod(static_cast<int64_t>(balance_A) - amount_A, PP);
     std::cout << "balance_A: " << balance_A << ", amount: " << amount_A << ", new_balance: " << new_balance_A << std::endl; // TODO : remove temp. Note, right now it's amount*balance
     // TODO: run the following checks in MPC
-    std::string dataToSend = serializeData(amount_A, amount_B, new_balance_A);
 
-    // Send data to other servers
-    send(connectionHandler1, dataToSend.c_str(), dataToSend.size(), 0);
-    send(connectionHandler2, dataToSend.c_str(), dataToSend.size(), 0);
+    // Prepare the data to send
+    auto inputs = std::make_tuple(amount_A, amount_B, new_balance_A);
 
-    std::cout << "Server" << server_index << " has sent: " << amount_A << ", " << amount_B << ", " << new_balance_A << std::endl;
+    // Run the round of communication
+    auto [output1, output2] = run_round(inputs);
 
-    // Receive data from other servers
-    char buffer[1024] = {0};
-    if (receiveFully(connectionHandler1, buffer, 12) <= 0) { // Assuming 12 bytes is the size of your data
-        std::cerr << "Failed to receive data from server 1" << std::endl;
-        // Handle error
-    }
-
-    auto [amount_A_from_server1, amount_B_from_server1, new_balance_A_from_server1] = deserializeData(std::string(buffer));
+    // Process the received data
+    auto [amount_A_from_server1, amount_B_from_server1, new_balance_A_from_server1] = output1;
+    auto [amount_A_from_server2, amount_B_from_server2, new_balance_A_from_server2] = output2;
     std::cout << "Server" << server_index << " received: " << amount_A_from_server1 << ", " << amount_B_from_server1 << ", " << new_balance_A_from_server1 << std::endl;
-
-    memset(buffer, 0, sizeof(buffer)); // Clear the buffer
-    if (receiveFully(connectionHandler2, buffer, 12) <= 0) { // Assuming 12 bytes is the size of your data
-        std::cerr << "Failed to receive data from server 2" << std::endl;
-        // Handle error
-    }
-
-    auto [amount_A_from_server2, amount_B_from_server2, new_balance_A_from_server2] = deserializeData(std::string(buffer));
     std::cout << "Server" << server_index << " received: " << amount_A_from_server2 << ", " << amount_B_from_server2 << ", " << new_balance_A_from_server2 << std::endl;
 
     // 1. use tag_share_prime and whatever else is needed to verify access control/proper DPF to data_A, data_A1, data_B
