@@ -22,6 +22,34 @@ inline __m256i mul256(__m256i x1, __m256i x2) {
     return _mm256_mullo_epi64(x1, x2);
 }
 
+bool are_blocks_equal(const block& a, const block& b) {
+    // Compare 128-bit blocks by treating them as an array of integers
+    for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+        if (((uint32_t*)&a)[i] != ((uint32_t*)&b)[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool are_arrays_equal(const std::array<block, 4>& arr1, const std::array<block, 4>& arr2) {
+    for (size_t i = 0; i < arr1.size(); ++i) {
+        if (!are_blocks_equal(arr1[i], arr2[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool are_arrays_equal_2(const std::array<block, 2>& arr1, const std::array<block, 2>& arr2) {
+    for (size_t i = 0; i < arr1.size(); ++i) {
+        if (!are_blocks_equal(arr1[i], arr2[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 void benchmark_mersenne() {
     const size_t N = 10000000; // Number of elements
     const int REPEATS = 10;    // Number of repeats
@@ -240,6 +268,35 @@ int run_playground_tests(int N) {
         auto vms1 = DPF::EvalShamir(kms1, N, 1);
         auto vms2 = DPF::EvalShamir(kms2, N, 2);
 
+        // VerDPF tests
+        auto kmv = DPF::VerGenM(alpha, N, beta);
+        auto vmv0 = DPF::VerEvalFull8M(kmv.first, N, false);
+        auto vmv1 = DPF::VerEvalFull8M(kmv.second, N, true);
+
+        auto h1 = vmv0.second;
+        auto h2 = vmv1.second;
+
+        std::cout << "h1: ";
+        for (const auto& e : h1) {
+            std::cout << "[";
+            for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+                std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
+            }
+            std::cout << "] ";
+        }
+        std::cout << std::endl;
+
+        std::cout << "h2: ";
+        for (const auto& e : h2) {
+            std::cout << "[";
+            for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+                std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
+            }
+            std::cout << "] ";
+        }
+        std::cout << std::endl;
+        assert(are_arrays_equal(h1, h2));
+
         for (int i = 0; i < vm0.size(); i++) {
             ////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
             ////        std::cout << "a2[" << i << "] =" << a2[i] << std::endl;
@@ -363,6 +420,57 @@ int run_playground_tests(int N) {
     int s1 = recover_secret(shares, p);
     std::cout << s1 << " is the reconstructed secret " << std::endl;
 
+}
+
+int test_hash_functions() {
+    uint32_t r1 = rand();
+    uint32_t r2 = rand();
+    uint32_t r3 = rand();
+    uint32_t r4 = rand();
+
+    // Combine the four 32-bit numbers into a 128-bit number
+    block seed = _mm_set_epi32(r1, r2, r3, r4);
+    uint32_t alpha = 24323;
+    auto res = DPF::prg::hash1(seed, alpha);
+    auto res2 = DPF::prg::hash2(res);
+    auto res3 = DPF::prg::hash1(seed, alpha);
+    auto res4 = DPF::prg::hash2(res);
+
+    // Print the seed
+    std::cout << "Seed: " << std::hex << r1 << " " << r2 << " " << r3 << " " << r4 << std::endl;
+
+    // Print alpha
+    std::cout << "Alpha: " << alpha << std::endl;
+
+    // Assert that res is equal to res3
+    assert(are_arrays_equal(res, res3));
+
+    // Assert that res2 is equal to res4
+    assert(are_arrays_equal_2(res2, res4));
+
+    // Print res
+    std::cout << "Res: ";
+    for (const auto& e : res) {
+        std::cout << "[";
+        for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+            std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
+        }
+        std::cout << "] ";
+    }
+    std::cout << std::endl;
+
+    // Print res2
+    std::cout << "Res2: ";
+    for (const auto& e : res2) {
+        std::cout << "[";
+        for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+            std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
+        }
+        std::cout << "] ";
+    }
+    std::cout << std::endl;
+
+    return 0;
 }
 
 // TODO: refactor...
@@ -554,10 +662,13 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    int serverIndex = std::atoi(argv[1]);
+//    test_hash_functions();
     size_t N = std::strtoull(argv[2], nullptr, 10);
+    int x = run_playground_tests(N); // misc tests
 
-//    int x = run_playground_tests(N); // misc tests
+    int serverIndex = std::atoi(argv[1]);
+
+
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
 //    test_sumproduct();

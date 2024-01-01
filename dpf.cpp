@@ -35,6 +35,42 @@ namespace DPF {
             mAesFixedKey2.encryptECB_MMO_Blocks(seed.data(), 8, out.data());
             return out;
         }
+
+        // Implementation of H() from the verifiable DPF paper.
+        std::array<block, 4> hash1(const block& seed, uint32_t x) {
+            std::array<block, 4> output;
+
+            // Convert x to block type and XOR with seed to create 'v'
+            block v = _mm_xor_si128(seed, _mm_set1_epi32(x));
+
+            // Run encryption for i between [0, 3]
+            for (int i = 0; i < 4; ++i) {
+                block temp = _mm_add_epi32(v, _mm_set1_epi32(i)); // Add i to v
+                output[i] = mAesFixedKey.encryptECB_MMO(temp); // Encrypt and store in output
+            }
+
+            return output;
+        }
+
+        // Implementation of H'() from the verifiable DPF paper.
+        std::array<block, 2> hash2(const std::array<block, 4>& h) {
+            std::array<block, 2> output;
+
+            // XOR all 4 blocks in h
+            block combined = _mm_xor_si128(h[0], h[1]);
+            combined = _mm_xor_si128(combined, h[2]);
+            combined = _mm_xor_si128(combined, h[3]);
+
+            // Encrypt combined value
+            output[0] = mAesFixedKey.encryptECB_MMO(combined);
+
+            // Encrypt combined value + 1
+            block combinedPlusOne = _mm_add_epi64(combined, _mm_set1_epi64x(1));
+            output[1] = mAesFixedKey.encryptECB_MMO(combinedPlusOne);
+
+            return output;
+        }
+
     }
     inline block clr(block in) {
         return in & ~MSBBlock;
@@ -190,7 +226,15 @@ namespace DPF {
         return std::make_pair(ka, kb);
     }
 
-    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> GenM(size_t alpha, size_t logn, uint32_t msg) {
+    struct GenResult {
+        std::pair<std::vector<uint8_t>, std::vector<uint8_t>> keys;
+        block s0;
+        block s1;
+        bool t0;
+        bool t1;
+    };
+
+    GenResult GenM_helper(size_t alpha, size_t logn, uint32_t msg) {
         assert(logn <= 63);
         assert(alpha < (1<<logn));
         std::vector<uint8_t> ka, kb, CW;
@@ -285,7 +329,62 @@ namespace DPF {
         ka.insert(ka.end(), CW.begin(), CW.end());
         kb.insert(kb.end(), CW.begin(), CW.end());
 
-        return std::make_pair(ka, kb);
+        GenResult res;
+        res.keys = std::make_pair(ka, kb);
+        res.s0 = ConvertBlock(s0);
+        res.s1 = ConvertBlock(s1);
+//        res.t0 = t0;
+//        res.t1 = t1;
+//        res.t0 = getT(s0);
+        res.t0 = (res.s0 & 0x01)[1];
+        res.t1 = (res.s1 & 0x01)[1];
+//        res.t1 = getT(s1);
+
+        return res;
+    }
+
+    std::pair<std::vector<uint8_t>, std::vector<uint8_t>> GenM(size_t alpha, size_t logn, uint32_t msg) {
+        auto genres = GenM_helper(alpha, logn, msg);
+        return genres.keys;
+    }
+
+    std::array<block, 4> xorArrays(const std::array<block, 4>& array1, const std::array<block, 4>& array2) {
+        std::array<block, 4> result;
+
+        for (size_t i = 0; i < 4; ++i) {
+            result[i] = _mm_xor_si128(array1[i], array2[i]);
+        }
+
+        return result;
+    }
+
+    std::pair<KeyShare, KeyShare> VerGenM(size_t alpha, size_t logn, uint32_t msg) {
+        bool t0 = false;
+        bool t1 = false;
+        GenResult genres;
+
+        while (t0 == t1) {
+            genres = GenM_helper(alpha, logn, msg);
+            t0 = genres.t0;
+            t1 = genres.t1;
+        }
+
+        uint32_t alpha_offset = alpha - (alpha % 4);
+
+        auto pi_tilde0 = prg::hash1(genres.s0, alpha_offset);
+        auto pi_tilde1 = prg::hash1(genres.s1, alpha_offset);
+        auto cs = xorArrays(pi_tilde0, pi_tilde1);
+        KeyShare key0, key1;
+
+        key0.key = genres.keys.first;
+        key0.cs = cs;
+        key0.z = 0;
+
+        key1.key = genres.keys.second;
+        key1.cs = cs;
+        key1.z = 0;
+
+        return std::make_pair(key0, key1);
     }
 
     // This allows merging multiple 1-bit DPFs into a single one in parallel.
@@ -504,14 +603,17 @@ namespace DPF {
         EvalFullRecursive8(key, sR, tR, lvl+1, stop, res);
     }
 
-    std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
+    std::pair<std::vector<uint32_t>, std::vector<block>> EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable) {
         assert(logn <= 63);
-        std::vector<uint8_t> data;
+        std::vector<uint8_t> data, data_nodes;
         data.resize( 4*(1ULL << logn) );
+        data_nodes.resize( 4*(1ULL << logn) );
         std::array<uint8_t*,8> data_ptrs;
+        std::array<uint8_t*,8> data_ptrs_nodes;
         for(size_t i = 0; i < 8; i++) {
 //            data_ptrs[i] = &data[i*(1ULL << (logn - 3 - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
             data_ptrs[i] = &data[4*i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
+            data_ptrs_nodes[i] = &data_nodes[4*i*(1ULL << (logn - 3))];
         }
         block s;
         memcpy(&s, key.data(), 16);
@@ -639,27 +741,89 @@ namespace DPF {
         std::array<block, 8> s_array{sLLL, sRLL, sLRL, sRRL, sLLR, sRLR, sLRR, sRRR};
         std::array<uint8_t, 8> t_array{tLLL, tRLL, tLRL, tRRL, tLLR, tRLR, tLRR, tRRR};
 
-        EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, nullptr, party_index);
+        EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, data_ptrs_nodes, nullptr, party_index, verifiable);
 
         const uint32_t* begin = reinterpret_cast<const uint32_t*>(data.data());
         const uint32_t* end = reinterpret_cast<const uint32_t*>(data.data() + data.size());
 
-        return std::vector<uint32_t>(begin, end);
+        const block* begin_nodes = reinterpret_cast<const block*>(data_nodes.data());
+        const block* end_nodes = reinterpret_cast<const block*>(data_nodes.data() + data_nodes.size());
+
+        auto v1 = std::vector<uint32_t>(begin, end);
+        auto v2 = std::vector<block>(begin_nodes, end_nodes);
+        return std::make_pair(
+                v1, v2
+        );
     }
 
+    std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
+        auto res = EvalFull8M_helper(key, logn, party_index, false);
+        return res.first;
+    }
+
+    std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index) {
+        auto res = EvalFull8M_helper(key.key, logn, party_index, true);
+        auto vm = res.first;
+        auto nodes = res.second;
+        std::array<block, 4> pi = key.cs;
+        block s;
+        bool t;
+
+        // Hash it all! For integrity
+        for (int i = 0; i < vm.size(); i += 4) {
+            s = nodes[i/4];
+            t = (s & 0x01)[1];
+//                t = getT(s);
+            uint32_t i_offset = i - (i % 4);
+
+            std::array<block, 4> pi_tilde = prg::hash1(s, i_offset);
+
+            auto corrected_pi_tilde = pi_tilde;
+            for (int j=0; j<4; j++) {
+                if (t) {
+                    corrected_pi_tilde[j] = _mm_xor_si128(corrected_pi_tilde[j], key.cs[j]);
+                }
+                corrected_pi_tilde[j] = _mm_xor_si128(corrected_pi_tilde[j], pi[j]);
+            }
+            std::array<block, 2> h2_output = prg::hash2(corrected_pi_tilde);
+
+            pi[0] = _mm_xor_si128(pi[0], h2_output[0]);
+            pi[1] = _mm_xor_si128(pi[1], h2_output[1]);
+            pi[2] = _mm_xor_si128(pi[2], h2_output[0]);
+            pi[3] = _mm_xor_si128(pi[3], h2_output[1]);
+        }
+
+        return std::make_pair(
+                res.first,
+                pi
+        );
+    }
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint8_t*,8>& res, block *CW, bool party_index) {
+    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint8_t*,8>& res, std::array<uint8_t*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
         if(lvl == stop) {
             std::array<reg_arr_union,8> tmp;
             reg_arr_union CW;
             memcpy(CW.arr, key.data() + key.size() - 16, 16);
             std::array<block, 8> conv =  ConvertBlock8(s);
             for (int i = 0; i < 8; i++) {
-                block tt = _mm_set1_epi8(-(t[i]));
+                // If verifiable, then get t from the last batch of s's.
+                uint8_t t_i = t[i];
+//                if (verifiable) {
+//                    t_i = static_cast<uint8_t>(getT(conv[i]));
+//                }
+                block tt = _mm_set1_epi8(-(t_i));
                 tmp[i].reg = conv[i] ^ (CW.reg & tt);
                 memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 128 elements condensed.. since this is 1 bit
                 res[i] += sizeof(block);
+
+                if (verifiable) {
+                    reg_arr_union tmp2;
+                    tmp2.reg = conv[i];
+//                    tmp2.reg = conv[i] ^ (CW.reg & tt);
+                    memcpy(res_nodes[i], tmp2.arr, 16);
+                    res_nodes[i] += sizeof(block);
+                }
             }
             return;
         }
@@ -681,8 +845,8 @@ namespace DPF {
             sL[i] ^= (sCW & tt);
             sR[i] ^= (sCW & tt);
         }
-        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res, CW, party_index);
-        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res, CW, party_index);
+        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res, res_nodes, CW, party_index, verifiable);
+        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res, res_nodes, CW, party_index, verifiable);
     }
 
     std::vector<uint8_t> EvalFull8(const std::vector<uint8_t>& key, size_t logn) {
