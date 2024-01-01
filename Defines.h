@@ -15,6 +15,7 @@
 
 template<typename T> using span = gsl::span<T>;
 
+typedef uint32_t field;
 typedef  __m128i block;
 typedef  union {
     __m128i reg;

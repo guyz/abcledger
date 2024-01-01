@@ -19,13 +19,15 @@
 #include <sstream>
 #include <variant>
 #include <tuple>
+#include "utils.h"
 
 class Server {
 public:
     Server(int index, size_t N);
     void transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
+                  const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A1,
                   const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
-                  uint32_t tag_share);
+                  field tag_A_share, field tag_A1_share);
     uint32_t balance(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, uint32_t tag_share);
 
 private:
@@ -125,7 +127,12 @@ private:
     void initData(size_t N);
     void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
 
-    void localMPCChecks(std::vector<uint32_t>& amount_As, std::vector<uint32_t>& amount_Bs, std::vector<uint32_t>& new_balance_As);
+    void localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
+                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes);
+
+    // Other MPC gates - // TODO: MPC versions
+    bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);
+
 };
 
 

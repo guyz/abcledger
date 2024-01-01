@@ -23,6 +23,9 @@
 #include <vector>
 #include <cstring>
 
+// TODO: Things to implement:
+// Frand, Fzero, Fltz, PRZS, PRSS
+
 Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alphas(N) {
     log2N = static_cast<int>(std::log2(N));
 
@@ -256,32 +259,42 @@ bool Server::waitForAck(int socket) {
     return std::string(ackBuffer) == "ack";
 }
 
-void Server::localMPCChecks(std::vector<uint32_t>& amount_As, std::vector<uint32_t>& amount_Bs, std::vector<uint32_t>& new_balance_As) {
-//        uint32_t amount_A1, uint32_t amount_A2, uint32_t amount_A3,
-//                            uint32_t amount_B1, uint32_t amount_B2, uint32_t amount_B3,
-//                            uint32_t new_balance_A1, uint32_t new_balance_A2, uint32_t new_balance_A3
-//                            ) {
-    // TODO: Secure these tests, right now they are in plaintext
-    auto amount_A_shares = encode_to_shares(amount_As);
+bool Server::LTZ(std::vector<std::pair<int64_t, int64_t>> shares) {
+    auto x = recover_secret(shares, PP);
+    return x < 0;
+}
 
-    auto amount_B_shares = encode_to_shares(amount_Bs);
+//localMPCChecks(amount_deltas, amount_As, amount_Amaxs,
+//        new_balances_A, tag_share_A_primes, tag_share_A1_primes);
+void Server::localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
+                            std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes) {
 
-    auto new_balance_A_shares = encode_to_shares(new_balance_As);
+    auto amount_deltas_shares = encode_to_shares(amount_deltas);
+    auto amount_As_shares = encode_to_shares(amount_deltas);
+    auto amount_Amaxs_shares = encode_to_shares(amount_Amaxs);
+    auto new_balances_A_shares = encode_to_shares(new_balances_A);
+    auto tagDelta_shares = encode_to_shares(tag_share_A_primes);
+    auto tag1Delta_shares = encode_to_shares(tag_share_A1_primes);
 
-    auto amount_A = recover_secret(amount_A_shares, PP);
-    auto amount_B = recover_secret(amount_B_shares, PP);
-    auto new_balance_A = recover_secret(new_balance_A_shares, PP);
-
-    // TODO: missing tests (and obviously MPCize tests..) - like access control / valid DPF stuff..
-
+    auto amount_delta = recover_secret(amount_deltas_shares, PP);
     // amount_A and amount_B are the same
-    assert( (amount_A - amount_B) == 0);
+    assert( amount_delta == 0); // NOTE: this needs to be equalzero in malicious
 
+    // Access control checks pass // TODO: do these need to be equalzero in malicious?
+    auto tagDelta = recover_secret(tagDelta_shares, PP);
+    auto tag1Delta = recover_secret(tag1Delta_shares, PP);
+    assert( tagDelta == 0);
+    assert( tag1Delta == 0);
+
+    // TODO: Pi and shamir sharing of DPF B
+
+    // TODO: Proper LTZ protocol
+    // LTZ gates
     // amount_A in range
-    assert( (amount_A < 0) == false && ((amount_A - (1 << (31 - 1)) ) < 0) == true);
-
+    assert(LTZ(amount_As_shares) == 0);
+//    assert(LTZ(amount_Amaxs_shares) == 1); // TODO: fix this..
     // new balance is not negative
-    assert( (new_balance_A < 0) == false);
+    assert(LTZ(new_balances_A_shares) == 0);
 
 }
 
@@ -318,61 +331,92 @@ std::pair<std::tuple<Args...>, std::tuple<Args...>> Server::run_round(const std:
 }
 
 void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
+                      const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A1,
                       const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
-                      uint32_t tag_share) {
+                      field tag_A_share, field tag_A1_share) {
     // Expand DPFs
     // TODO: could/should be parallelized?
-    auto data_A = DPF::EvalShamir(key_A, log2N, server_index); // TODO: get and check data_A1 from this..
+    auto data_A = DPF::EvalShamir(key_A, log2N, server_index);
+    auto data_A1 = DPF::EvalShamir(key_A1, log2N, server_index);
     auto data_B = DPF::EvalShamir(key_B, log2N, server_index);
     std::cout << "A[0]: " << data_A[0] << std::endl;
 
+    std::cout << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
+
     // Prepare Validity check
-    // TODO: VerifyDPF for data_B
-    // TODO: check access control for data_A1
-    uint32_t tag_share_prime = PIRW::innerprodff31(alphas, data_A);
+    // TODO: VerifyDPF for data_B - including shamir sharing..
+    // TODO: proper Fproduct.. i.e., with PRZS
+    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)) - tag_A_share, PP); // bad naming - this is actually the delta
+    field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)) - tag_A1_share, PP); // same
 
     // Prepare range checks
-    uint32_t amount_A = PIRW::sumvecff31(data_A);
-    uint32_t amount_B = PIRW::sumvecff31(data_B);
-    uint32_t balance_A = PIRW::innerprodff31(data_A, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
-    uint32_t new_balance_A = mod(static_cast<int64_t>(balance_A) - amount_A, PP);
-    std::cout << "balance_A: " << balance_A << ", amount: " << amount_A << ", new_balance: " << new_balance_A << std::endl; // TODO : remove temp. Note, right now it's amount*balance
+    field amount_A = PIRW::sumvecff31(data_A);
+    field amount_B = PIRW::sumvecff31(data_B);
+    field balance_A = PIRW::innerprodff31(data_A, ledger);
+    field new_balance_A = mod(static_cast<int64_t>(balance_A) - amount_A, PP); // Note: mod and cast like this work, otherwise some weird overflows. Can optimize at some point..
+    std::cout << "balance_A: " << balance_A << ", amount: " << amount_A << ", amount_B: " << amount_B << ", new_balance: " << new_balance_A << ", tag1: " << PIRW::innerprodff31(alphas, data_A) << ", tag2: " << tag_A_share << std::endl; // TODO : remove temp. Note, right now it's amount*balance
     // TODO: run the following checks in MPC
 
     // Prepare the data to send
-    auto inputs = std::make_tuple(amount_A, amount_B, new_balance_A);
+    field amount_delta = mod(static_cast<int64_t>(amount_A) - amount_B, PP);
+    field amount_Amax = mod(static_cast<int64_t>(amount_A) - MAX_VALID_INT, PP);
+
+    std::cout << "amount_delta: " << amount_delta << ", amount_Amax: " << amount_Amax << ", tag_delta: " << tag_share_A_prime << std::endl;
+
+    auto inputs = std::make_tuple(
+            amount_delta, // Check that they are equal
+            amount_A, // Input to FLTZ(amount_A)
+            amount_Amax, // Input to FLTZ(amount_A - MAX_VALID_INT)
+            new_balance_A, // Input to FLTZ(balance_A - amount_A)
+            tag_share_A_prime, // access control proof
+            tag_share_A1_prime // access control proof
+            // TODO: missing DPF_B proof
+            );
 
     // Run the round of communication
     auto [output1, output2] = run_round(inputs);
 
     // Process the received data
-    auto [amount_A_from_server1, amount_B_from_server1, new_balance_A_from_server1] = output1;
-    auto [amount_A_from_server2, amount_B_from_server2, new_balance_A_from_server2] = output2;
-    std::cout << "Server" << server_index << " received: " << amount_A_from_server1 << ", " << amount_B_from_server1 << ", " << new_balance_A_from_server1 << std::endl;
-    std::cout << "Server" << server_index << " received: " << amount_A_from_server2 << ", " << amount_B_from_server2 << ", " << new_balance_A_from_server2 << std::endl;
+    auto [amount_delta1, amount_A1, amount_Amax1, new_balance_A1, tag_share_A_prime1, tag_share_A1_prime1] = output1;
+    auto [amount_delta2, amount_A2, amount_Amax2, new_balance_A2, tag_share_A_prime2, tag_share_A1_prime2] = output2;
+//    std::cout << "Server" << server_index << " received: " << amount_A_from_server1 << ", " << amount_B_from_server1 << ", " << new_balance_A_from_server1 << std::endl;
+//    std::cout << "Server" << server_index << " received: " << amount_A_from_server2 << ", " << amount_B_from_server2 << ", " << new_balance_A_from_server2 << std::endl;
 
     // 1. use tag_share_prime and whatever else is needed to verify access control/proper DPF to data_A, data_A1, data_B
     // 2. Open(amount_A-amount_B) and make sure it is zero. Need to show in the proof that this works later, but generally speaking the idea is we don't need an equality gate - just public open
     // 3. Check that LTZ(amount_A) == false and LTZ(amount_A - MAX_VALUE) == true // This checks that amount_A is in [0, MAX_VALUE). Assume that MAX_VALUE is greater than all the coins in the system ever..
     // 4. Check that LTZ(new_balance_A) == false // Make sure that this tx won't turn the balance negative
 
-    std::vector<uint32_t> amount_As = {0,0,0};
-    std::vector<uint32_t> amount_Bs = {0,0,0};
-    std::vector<uint32_t> new_balance_As = {0,0,0};
+    std::vector<uint32_t> amount_deltas(3, 0), amount_As(3, 0), amount_Amaxs(3, 0),
+            new_balances_A(3, 0), tag_share_A_primes(3, 0), tag_share_A1_primes(3, 0);
+
+    amount_deltas[server_index] = amount_delta;
+    amount_deltas[serverIndex1] = amount_delta1;
+    amount_deltas[serverIndex2] = amount_delta2;
 
     amount_As[server_index] = amount_A;
-    amount_As[serverIndex1] = amount_A_from_server1;
-    amount_As[serverIndex2] = amount_A_from_server2;
+    amount_As[serverIndex1] = amount_A1;
+    amount_As[serverIndex2] = amount_A2;
 
-    amount_Bs[server_index] = amount_B;
-    amount_Bs[serverIndex1] = amount_B_from_server1;
-    amount_Bs[serverIndex2] = amount_B_from_server2;
+    amount_Amaxs[server_index] = amount_Amax;
+    amount_Amaxs[serverIndex1] = amount_Amax1;
+    amount_Amaxs[serverIndex2] = amount_Amax2;
 
-    new_balance_As[server_index] = new_balance_A;
-    new_balance_As[serverIndex1] = new_balance_A_from_server1;
-    new_balance_As[serverIndex2] = new_balance_A_from_server2;
+    new_balances_A[server_index] = new_balance_A;
+    new_balances_A[serverIndex1] = new_balance_A1;
+    new_balances_A[serverIndex2] = new_balance_A2;
 
-    localMPCChecks(amount_As, amount_Bs, new_balance_As);
+    tag_share_A_primes[server_index] = tag_share_A_prime;
+    tag_share_A_primes[serverIndex1] = tag_share_A_prime1;
+    tag_share_A_primes[serverIndex2] = tag_share_A_prime2;
+
+    tag_share_A1_primes[server_index] = tag_share_A1_prime;
+    tag_share_A1_primes[serverIndex1] = tag_share_A1_prime1;
+    tag_share_A1_primes[serverIndex2] = tag_share_A1_prime2;
+
+
+    localMPCChecks(amount_deltas, amount_As, amount_Amaxs,
+                   new_balances_A, tag_share_A_primes, tag_share_A1_primes);
 
     // Finalize the transaction after the MPC round / all checks have passed
     ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize

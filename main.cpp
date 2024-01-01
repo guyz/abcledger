@@ -516,16 +516,23 @@ bool fileExists(const std::string& fileName) {
     return std::filesystem::exists(fileName);
 }
 
+
+void client_send() {
+
+}
+
 void test_client(int serverIndex, int logN) {
     int N = 1 << logN;
     int amount = 7;
     int senderIndex = 0;
     int recvIndex = 20;
-    uint64_t alpha = 1365547451;
+    uint64_t alpha = 1839595261;
 
     // Load/generate data
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsA_i;
     std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsB_i;
+
+    //todo: 1DPF..
 
     auto kmsA = DPF::GenShamir(senderIndex, logN, amount);
     auto kmsB = DPF::GenShamir(recvIndex, logN, amount);
@@ -544,7 +551,9 @@ void test_client(int serverIndex, int logN) {
         kmsB_i = kmsA[serverIndex];
     }
 
-    uint32_t tag_share = (alpha*amount) % PP; // TODO: shamir share this..
+    field tag_A = (alpha*amount) % PP;
+    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = gen_shares(3, 2, tag_A, PP);
+    field tag_A_share = tag_A_shares[serverIndex].second;
 
     // TODO: remove temp
 //    std::vector<std::vector<uint32_t>> ledgers(4);  // Create a vector of 3 vectors
@@ -635,7 +644,7 @@ void test_client(int serverIndex, int logN) {
 
     // Call the transfer function
     Server server(serverIndex, N);
-    server.transfer(kmsA_i, kmsB_i, tag_share);
+    server.transfer(kmsA_i, kmsA_i, kmsB_i, tag_A_share, tag_A_share); // TODO: A1 share and tag
 
     std::cout << "Done" << std::endl;
 }
@@ -650,12 +659,15 @@ void test_server(int serverIndex, int logN) {
     uint32_t tag_share = 54;
 
     // Call the transfer function
-    server.transfer(kms1[0], kms2[0], tag_share); //TODO: index to kms1, kms2 based on server_index
+//    server.transfer(kms1[0], kms2[0], tag_share); //TODO: index to kms1, kms2 based on server_index
 
     std::cout << "Done" << std::endl;
 }
 
 int main(int argc, char** argv) {
+    std::cout << "Current working directory: "
+              << std::filesystem::current_path()
+              << std::endl;
 
     if(argc != 3) {
 	    std::cout << "Usage: ./dpf_pir <server_index> <log_tree_size>" << std::endl;
@@ -664,7 +676,7 @@ int main(int argc, char** argv) {
 
 //    test_hash_functions();
     size_t N = std::strtoull(argv[2], nullptr, 10);
-    int x = run_playground_tests(N); // misc tests
+//    int x = run_playground_tests(N); // misc tests
 
     int serverIndex = std::atoi(argv[1]);
 
