@@ -8,6 +8,8 @@
 #include <vector>
 #include <cmath>
 #include "utils.h"
+#include <random>
+#include <stdexcept>
 
 // Compute the dot product of two vectors over Zp
 int64_t dot_product(std::vector<int64_t> a, std::vector<int64_t> b, int64_t p) {
@@ -125,4 +127,128 @@ int64_t recover_secret(std::vector<std::pair<int64_t, int64_t>> shares, int64_t 
     }
 
     return lagrange_interp(x_values, y_values, 0, p);
+}
+
+
+
+
+// Global Definitions
+const int FIELD_SIZE = 256;
+std::vector<int> exp_table(FIELD_SIZE * 2);
+std::vector<int> log_table(FIELD_SIZE);
+
+void generate_tables() {
+    int x = 1;
+    for (int i = 0; i < FIELD_SIZE - 1; i++) {
+        exp_table[i] = x;
+        log_table[x] = i;
+        x = (x * 2) ^ ((x >= 128) ? 0x11d : 0);
+    }
+    for (int i = FIELD_SIZE - 1; i < FIELD_SIZE * 2 - 1; i++) {
+        exp_table[i] = exp_table[i - FIELD_SIZE + 1];
+    }
+}
+
+int gf256_add(int a, int b) {
+    return a ^ b;
+}
+
+int gf256_mult(int a, int b) {
+    if (a == 0 || b == 0) return 0;
+    return exp_table[(log_table[a] + log_table[b]) % (FIELD_SIZE - 1)];
+}
+
+int gf256_inv(int a) {
+    if (a == 0) throw std::invalid_argument("Inverse of 0 does not exist.");
+    return exp_table[FIELD_SIZE - 1 - log_table[a]];
+}
+
+int gf256_eval_poly(const std::vector<int>& poly, int x) {
+    int y = 0;
+    for (int i = poly.size() - 1; i >= 0; i--) {
+        y = gf256_add(gf256_mult(y, x), poly[i]);
+    }
+    return y;
+}
+
+std::vector<std::pair<int, int>> share_gf256(int secret, int n, int t) {
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_int_distribution<> distrib(1, FIELD_SIZE - 1);
+    int k = t + 1;
+
+    std::vector<int> coefficients(k);
+    coefficients[0] = secret;
+    for (int i = 1; i < k; ++i) {
+        coefficients[i] = distrib(gen);
+    }
+
+    std::vector<std::pair<int, int>> shares;
+    for (int i = 1; i <= n; ++i) {
+        shares.push_back({i, gf256_eval_poly(coefficients, i)});
+    }
+
+    return shares;
+}
+
+int gf256_interpolate(const std::vector<int>& x, const std::vector<int>& y, int at) {
+    int result = 0;
+    for (size_t i = 0; i < x.size(); i++) {
+        int term = y[i];
+        for (size_t j = 0; j < x.size(); j++) {
+            if (i != j) {
+                int base = gf256_add(at, x[j]);
+                int denom = gf256_add(x[i], x[j]);
+                term = gf256_mult(term, gf256_mult(base, gf256_inv(denom)));
+            }
+        }
+        result = gf256_add(result, term);
+    }
+    return result;
+}
+
+int reconstruct_gf256(const std::vector<std::pair<int, int>>& shares) {
+    std::vector<int> x_values;
+    std::vector<int> y_values;
+
+    for (const auto& share : shares) {
+        x_values.push_back(share.first);
+        y_values.push_back(share.second);
+    }
+
+    return gf256_interpolate(x_values, y_values, 0);
+}
+
+std::vector<std::vector<std::pair<int, int>>> share_gf256_vector(const std::vector<int>& secrets, int n, int t) {
+    std::vector<std::vector<std::pair<int, int>>> all_shares;
+    for (int secret : secrets) {
+        all_shares.push_back(share_gf256(secret, n, t));
+    }
+    return all_shares;
+}
+
+std::vector<int> reconstruct_gf256_vector(const std::vector<std::vector<std::pair<int, int>>>& all_shares) {
+    std::vector<int> reconstructed_secrets;
+    for (const auto& shares : all_shares) {
+        reconstructed_secrets.push_back(reconstruct_gf256(shares));
+    }
+    return reconstructed_secrets;
+}
+
+// Function to XOR shares of two vectors
+std::vector<std::pair<int, int>> xor_shares_vector(const std::vector<std::pair<int, int>>& x_shares,
+                                                   const std::vector<std::pair<int, int>>& y_shares) {
+    if (x_shares.size() != y_shares.size()) {
+        throw std::invalid_argument("Vectors of shares must be of the same size.");
+    }
+
+    std::vector<std::pair<int, int>> z_shares;
+    for (size_t i = 0; i < x_shares.size(); ++i) {
+        if (x_shares[i].first != y_shares[i].first) {
+            throw std::invalid_argument("Share indices do not match.");
+        }
+        z_shares.push_back({x_shares[i].first, gf256_add(x_shares[i].second, y_shares[i].second)});
+    }
+
+    return z_shares;
 }

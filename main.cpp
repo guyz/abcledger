@@ -651,6 +651,93 @@ void test_server(int serverIndex, int logN) {
     std::cout << "Done" << std::endl;
 }
 
+// test gf256 shares library
+void test_shamir_gf256() {
+    generate_tables();
+
+    // Example usage
+    int secret = 123; // The secret to share
+    int n = 3;       // Total number of shares
+    int k = 1;       // Threshold
+
+    auto shares = share_gf256(secret, n, k);
+    // Display shares
+    for (const auto& share : shares) {
+        std::cout << "Share " << share.first << ": " << share.second << std::endl;
+    }
+
+    // Reconstruction using any k shares
+//    int reconstructed_secret = reconstruct_gf256({shares[0], shares[1], shares[2]});
+    int reconstructed_secret = reconstruct_gf256({shares[0], shares[1]});
+    std::cout << "Reconstructed Secret: " << reconstructed_secret << std::endl;
+
+
+    // Vector of shares
+
+    // Example usage with a vector of integers
+    std::vector<int> secrets = {123, 45, 67, 89}; // The secrets to share
+
+    auto all_shares = share_gf256_vector(secrets, n, k);
+
+    // Display shares for each secret
+    for (size_t i = 0; i < all_shares.size(); ++i) {
+        std::cout << "Secret " << i + 1 << " Shares:" << std::endl;
+        for (const auto& share : all_shares[i]) {
+            std::cout << "  Share " << share.first << ": " << share.second << std::endl;
+        }
+    }
+
+    // Reconstruction using any k shares from each set
+    std::vector<std::vector<std::pair<int, int>>> selected_shares;
+    for (const auto& shares : all_shares) {
+        selected_shares.push_back({shares[0], shares[1]});
+    }
+    auto reconstructed_secrets = reconstruct_gf256_vector(selected_shares);
+
+    // Display reconstructed secrets
+    std::cout << "Reconstructed Secrets:" << std::endl;
+    for (int secret : reconstructed_secrets) {
+        std::cout << secret << " ";
+    }
+    std::cout << std::endl;
+
+
+    // Test XOR
+    // Example usage with two vectors of integers
+    std::vector<int> x = {123, 45, 67, 89}; // First vector of secrets
+    std::vector<int> y = {12, 34, 56, 78};  // Second vector of secrets
+
+    auto x_shares = share_gf256_vector(x, n, k);
+    auto y_shares = share_gf256_vector(y, n, k);
+
+    // Generate shares of z = x ^ y using the refactored xor_shares_vector function
+    std::vector<std::vector<std::pair<int, int>>> z_shares(x.size());
+    for (size_t i = 0; i < x.size(); ++i) {
+        z_shares[i] = xor_shares_vector(x_shares[i], y_shares[i]);
+    }
+
+    // Reconstruct z and verify it equals x ^ y
+    auto reconstructed_z = reconstruct_gf256_vector(z_shares);
+    std::vector<int> expected_z;
+    for (size_t i = 0; i < x.size(); ++i) {
+        expected_z.push_back((x[i] ^ y[i]));
+    }
+
+    // Display results
+    std::cout << "Reconstructed Z: ";
+    for (int val : reconstructed_z) {
+        std::cout << val << " ";
+    }
+    std::cout << std::endl;
+
+    std::cout << "Expected Z: ";
+    for (int val : expected_z) {
+        std::cout << val << " ";
+    }
+    std::cout << std::endl;
+
+}
+
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "
               << std::filesystem::current_path()
@@ -661,6 +748,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    test_shamir_gf256();
 //    test_hash_functions();
     size_t N = std::strtoull(argv[2], nullptr, 10);
 //    int x = run_playground_tests(N); // misc tests
