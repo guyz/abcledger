@@ -20,15 +20,16 @@
 #include <variant>
 #include <tuple>
 #include "utils.h"
+#include "dpf.h"
 
 class Server {
 public:
     Server(int index, size_t N);
-    void transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
-                  const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A1,
-                  const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
+    void transfer(const std::vector<DPF::KeyShare>& key_A,
+                  const std::vector<DPF::KeyShare>& key_A1,
+                  const std::vector<DPF::KeyShare>& key_B,
                   field tag_A_share, field tag_A1_share);
-    uint32_t balance(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, uint32_t tag_share);
+    uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
 
 private:
     int log2N;
@@ -132,6 +133,8 @@ private:
 
     // Other MPC gates - // TODO: MPC versions
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);
+    field PRSS();
+    field PRZS();
 
 };
 

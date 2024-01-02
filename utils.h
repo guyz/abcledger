@@ -11,6 +11,7 @@
 #include <immintrin.h>
 #include "Defines.h"
 
+const std::string DATA_DIR = "/home/azureuser/data/";
 const int OTHER_PRIME = 4294967111;
 const int PP = 2147483647;
 const uint64_t MODINV2 = 1073741824;

@@ -29,8 +29,8 @@
 Server::Server(int index, size_t N) : N(N), server_index(index), ledger(N), alphas(N) {
     log2N = static_cast<int>(std::log2(N));
 
-    std::ifstream ledgerFile("data/ledger-" + std::to_string(server_index + 1) + ".txt");
-    std::ifstream alphasFile("data/alphas-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream ledgerFile(DATA_DIR + "ledger-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream alphasFile(DATA_DIR + "alphas-" + std::to_string(server_index + 1) + ".txt");
 
     // If any file doesn't exist, call initData
     if (!ledgerFile || !alphasFile) {
@@ -209,19 +209,19 @@ void Server::initData(size_t N) {
     }
 
     // Save to files
-    saveToFile(ledger_raw, "data/ledger.txt");
-    saveToFile(ledger1, "data/ledger-1.txt");
-    saveToFile(ledger2, "data/ledger-2.txt");
-    saveToFile(ledger3, "data/ledger-3.txt");
-    saveToFile(alphas_raw, "data/alphas.txt");
-    saveToFile(alphas1, "data/alphas-1.txt");
-    saveToFile(alphas2, "data/alphas-2.txt");
-    saveToFile(alphas3, "data/alphas-3.txt");
+    saveToFile(ledger_raw, DATA_DIR + "ledger.txt");
+    saveToFile(ledger1, DATA_DIR + "ledger-1.txt");
+    saveToFile(ledger2, DATA_DIR + "ledger-2.txt");
+    saveToFile(ledger3, DATA_DIR + "ledger-3.txt");
+    saveToFile(alphas_raw, DATA_DIR + "alphas.txt");
+    saveToFile(alphas1, DATA_DIR + "alphas-1.txt");
+    saveToFile(alphas2, DATA_DIR + "alphas-2.txt");
+    saveToFile(alphas3, DATA_DIR + "alphas-3.txt");
 }
 
 void Server::saveToFile(const std::vector<uint32_t>& data, const std::string& filename) {
-    if (!std::filesystem::exists("data")) {
-        std::filesystem::create_directory("data");
+    if (!std::filesystem::exists(DATA_DIR)) {
+        std::filesystem::create_directory(DATA_DIR);
     }
 
     std::ofstream outFile(filename);
@@ -257,6 +257,18 @@ bool Server::waitForAck(int socket) {
         return false;
     }
     return std::string(ackBuffer) == "ack";
+}
+
+field Server::PRSS() {
+    // TODO: real PRSS
+    field rs[3] = {153685505, 402498915, 651312325};
+    return rs[server_index];
+}
+
+field Server::PRZS() {
+    // TODO: real PRZS
+    field rs[3] = {299355974, 2120311573, 1167899503};
+    return rs[server_index];
 }
 
 bool Server::LTZ(std::vector<std::pair<int64_t, int64_t>> shares) {
@@ -330,17 +342,23 @@ std::pair<std::tuple<Args...>, std::tuple<Args...>> Server::run_round(const std:
     return {output1, output2};
 }
 
-void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A,
-                      const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_A1,
-                      const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key_B,
+void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
+                      const std::vector<DPF::KeyShare>& key_A1,
+                      const std::vector<DPF::KeyShare>& key_B,
                       field tag_A_share, field tag_A1_share) {
     // Expand DPFs
     // TODO: could/should be parallelized?
-    auto data_A = DPF::EvalShamir(key_A, log2N, server_index);
-    auto data_A1 = DPF::EvalShamir(key_A1, log2N, server_index);
-    auto data_B = DPF::EvalShamir(key_B, log2N, server_index);
-    std::cout << "A[0]: " << data_A[0] << std::endl;
+    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
+    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
+    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
 
+    auto data_A = res_A.first;
+    auto data_A1 = res_A1.first;
+    auto data_B = res_B.first;
+    auto pi_B = res_B.second;
+
+    std::cout << "A[0]: " << data_A[0] << std::endl;
+//    std::cout << "pi_B: " << pi_B[0][0] << std::endl;
     std::cout << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
 
     // Prepare Validity check
@@ -425,8 +443,8 @@ void Server::transfer(const std::vector<std::pair<uint32_t, std::vector<uint8_t>
 //    closeConnections();
 }
 
-uint32_t Server::balance(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, uint32_t tag_share) {
-    auto data = DPF::EvalShamir(key, log2N, server_index);
+uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share) {
+    auto data = DPF::EvalShamir(key, log2N, server_index).first;
     uint32_t tag_share_prime = PIRW::innerprodff31(alphas, data);
 
     // TODO: check access in MPC (Open(t-t') == 0)

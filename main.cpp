@@ -257,16 +257,16 @@ int run_playground_tests(int N) {
         auto kmp = DPF::GenP(alpha, N, beta1, beta2);
         auto kmp0 = kmp.first;
         auto kmp1 = kmp.second;
-        auto vmp0 = DPF::EvalFull8P(kmp0, N);
-        auto vmp1 = DPF::EvalFull8P(kmp1, N, true);
+        auto vmp0 = DPF::EvalFull8P(kmp0, N).first;
+        auto vmp1 = DPF::EvalFull8P(kmp1, N, true).first;
 
         auto kms = DPF::GenShamir(alpha, N, beta);
         auto kms0 = kms[0];
         auto kms1 = kms[1];
         auto kms2 = kms[2];
-        auto vms0 = DPF::EvalShamir(kms0, N, 0);
-        auto vms1 = DPF::EvalShamir(kms1, N, 1);
-        auto vms2 = DPF::EvalShamir(kms2, N, 2);
+        auto vms0 = DPF::EvalShamir(kms0, N, 0).first;
+        auto vms1 = DPF::EvalShamir(kms1, N, 1).first;
+        auto vms2 = DPF::EvalShamir(kms2, N, 2).first;
 
         // VerDPF tests
         auto kmv = DPF::VerGenM(alpha, N, beta);
@@ -475,42 +475,57 @@ int test_hash_functions() {
 
 // TODO: refactor...
 // Serialize
-void serialize(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& data, const std::string& filename) {
+void serialize(const std::vector<DPF::KeyShare>& data, const std::string& filename) {
     std::ofstream out(filename, std::ios::binary);
-    for (const auto& pair : data) {
-        out.write(reinterpret_cast<const char*>(&pair.first), sizeof(pair.first));
-        uint32_t size = pair.second.size();
-        out.write(reinterpret_cast<const char*>(&size), sizeof(size));
-        out.write(reinterpret_cast<const char*>(pair.second.data()), size);
+    for (const auto& keyShare : data) {
+        // Serialize 'key'
+        uint32_t keySize = keyShare.key.size();
+        out.write(reinterpret_cast<const char*>(&keySize), sizeof(keySize));
+        out.write(reinterpret_cast<const char*>(keyShare.key.data()), keySize);
+
+        // Serialize 'cs'
+        out.write(reinterpret_cast<const char*>(&keyShare.cs), sizeof(keyShare.cs));
+
+        // Serialize 'z'
+        out.write(reinterpret_cast<const char*>(&keyShare.z), sizeof(keyShare.z));
     }
     out.close();
 }
 
+
 // Unserialize
-std::vector<std::pair<uint32_t, std::vector<uint8_t>>> unserialize(const std::string& filename) {
-    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> data;
+std::vector<DPF::KeyShare> unserialize(const std::string& filename) {
+    std::vector<DPF::KeyShare> data;
     std::ifstream in(filename, std::ios::binary);
     while (!in.eof()) {
-        uint32_t first;
-        uint32_t size;
-        in.read(reinterpret_cast<char*>(&first), sizeof(first));
-        in.read(reinterpret_cast<char*>(&size), sizeof(size));
-        std::vector<uint8_t> second(size);
-        in.read(reinterpret_cast<char*>(second.data()), size);
-        data.emplace_back(first, second);
+        DPF::KeyShare keyShare;
+
+        // Unserialize 'key'
+        uint32_t keySize;
+        in.read(reinterpret_cast<char*>(&keySize), sizeof(keySize));
+        keyShare.key.resize(keySize);
+        in.read(reinterpret_cast<char*>(keyShare.key.data()), keySize);
+
+        // Unserialize 'cs'
+        in.read(reinterpret_cast<char*>(&keyShare.cs), sizeof(keyShare.cs));
+
+        // Unserialize 'z'
+        in.read(reinterpret_cast<char*>(&keyShare.z), sizeof(keyShare.z));
+
+        data.push_back(keyShare);
     }
     in.close();
     return data;
 }
 
-
-void writeVector(int index, const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& kms, std::string filename) {
-    serialize(kms, "data/" + filename + std::to_string(index) + ".txt");
+void writeVector(int index, const std::vector<DPF::KeyShare>& keyShares, std::string filename) {
+    serialize(keyShares, DATA_DIR + filename + std::to_string(index) + ".txt");
 }
 
-std::vector<std::pair<uint32_t, std::vector<uint8_t>>> loadVector(int index, std::string filename) {
-    return unserialize("data/" + filename + std::to_string(index) + ".txt");
+std::vector<DPF::KeyShare> loadVector(int index, std::string filename) {
+    return unserialize(DATA_DIR + filename + std::to_string(index) + ".txt");
 }
+
 
 bool fileExists(const std::string& fileName) {
     return std::filesystem::exists(fileName);
@@ -526,18 +541,18 @@ void test_client(int serverIndex, int logN) {
     int amount = 7;
     int senderIndex = 0;
     int recvIndex = 20;
-    uint64_t alpha = 1839595261;
+    uint64_t alpha = 2112445456;
 
     // Load/generate data
-    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsA_i;
-    std::vector<std::pair<uint32_t, std::vector<uint8_t>>> kmsB_i;
+    std::vector<DPF::KeyShare> kmsA_i;
+    std::vector<DPF::KeyShare> kmsB_i;
 
     //todo: 1DPF..
 
-    auto kmsA = DPF::GenShamir(senderIndex, logN, amount);
-    auto kmsB = DPF::GenShamir(recvIndex, logN, amount);
+    auto kmsA = DPF::GenShamir(senderIndex, logN, amount, false);
+    auto kmsB = DPF::GenShamir(recvIndex, logN, amount, true);
 
-    if (fileExists("data/kmsA" + std::to_string(serverIndex) + ".txt")) {
+    if (fileExists(DATA_DIR + "kmsA" + std::to_string(serverIndex) + ".txt")) {
         kmsA_i = loadVector(serverIndex, "kmsA");
         kmsB_i = loadVector(serverIndex, "kmsB");
     } else {

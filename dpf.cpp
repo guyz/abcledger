@@ -988,39 +988,57 @@ namespace DPF {
     }
 
     // New DPF Constructions
-    std::pair<std::pair<uint32_t, std::vector<uint8_t>>, std::pair<uint32_t, std::vector<uint8_t>>>
-    GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2) {
+    std::pair<KeyShare, KeyShare>
+    GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2, bool verifiable) {
         // TODO: pack values - not sure if needed actually? Go over this..
         uint32_t m = m1 ^ m2;
-        auto keys = GenM(alpha, logn, m);
+        KeyShare key0, key1;
+
+        if (verifiable) {
+            auto keys = VerGenM(alpha, logn, m);
+            key0 = keys.first;
+            key1 = keys.second;
+        } else {
+            auto keys = GenM(alpha, logn, m);
+            key0.key = keys.first;
+            key1.key = keys.second;
+        }
 
         // TODO: Implement Eval8M for a single value..
-        auto vm0 = DPF::EvalFull8M(keys.first, logn);
+        auto vm0 = DPF::EvalFull8M(key0.key, logn);
         uint32_t z = m1 ^ vm0[alpha];
 
-        return std::make_pair(
-                std::make_pair(z, keys.first),
-                std::make_pair(z, keys.second)
-        );
+        key0.z = z;
+        key1.z = z;
+
+        return std::make_pair(key0, key1);
     }
 
-    std::vector<uint32_t> EvalFull8P(const std::pair<uint32_t, std::vector<uint8_t>>& key, size_t logn, bool party_index) {
-        uint32_t z = key.first;
-        std::vector<uint8_t> dpfkey = key.second;
-        auto vm = DPF::EvalFull8M(dpfkey, logn, party_index);
+    std::pair<std::vector<uint32_t>, std::array<block, 4>> EvalFull8P(const KeyShare& key, size_t logn, bool party_index, bool verifiable) {
+        uint32_t z = key.z;
+        std::vector<uint32_t> vm;
+        std::array<block, 4> pi;
 
+        if (verifiable) {
+            auto res = DPF::VerEvalFull8M(key, logn, party_index);
+            vm = res.first;
+            pi = res.second;
+        } else {
+            vm = DPF::EvalFull8M(key.key, logn, party_index);
+        }
 
-        // TODO: insert this into the recursive function instead of looping all values again. May help..
+        // TODO: low priority - insert this into the recursive function instead of looping all values again. May help..
         for (int i = 0; i < vm.size(); i++) {
             vm[i] = z ^ vm[i];
         }
-        return vm;
+
+        return std::make_pair(vm, pi);
     }
 
 
     // Shamir DPFs
-    std::vector<std::vector<std::pair<uint32_t, std::vector<uint8_t>>>>
-    GenShamir(size_t alpha, size_t logn, uint32_t m) {
+    std::vector<std::vector<KeyShare>>
+    GenShamir(size_t alpha, size_t logn, uint32_t m, bool verifiable) {
         std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 2, m, PP);
         uint32_t m1 = shares[0].second;
 //        uint32_t m2 = modmersenne31(static_cast<uint64_t>(shares[1].second) * MODINV2);
@@ -1035,17 +1053,17 @@ namespace DPF {
         uint32_t v2 = m2 ^ v3;
         uint32_t v4 = m3 ^ v2;
 
-        auto keys1 = GenP(alpha, logn, v1, v2);
-        auto keys2 = GenP(alpha, logn, v3, v4);
+        auto keys1 = GenP(alpha, logn, v1, v2, verifiable);
+        auto keys2 = GenP(alpha, logn, v3, v4, verifiable);
 
-        std::vector<std::pair<uint32_t, std::vector<uint8_t>>> key_for_p1 = {keys1.first, keys2.first};
-        std::vector<std::pair<uint32_t, std::vector<uint8_t>>> key_for_p2 = {keys1.second, keys2.first};
-        std::vector<std::pair<uint32_t, std::vector<uint8_t>>> key_for_p3 = {keys1.second, keys2.second};
+        auto key_for_p1 = {keys1.first, keys2.first};
+        auto key_for_p2 = {keys1.second, keys2.first};
+        auto key_for_p3 = {keys1.second, keys2.second};
 
         return {key_for_p1, key_for_p2, key_for_p3};
     }
 
-    std::vector<uint32_t> EvalShamir(const std::vector<std::pair<uint32_t, std::vector<uint8_t>>>& key, size_t logn, uint64_t party_index) {
+    std::pair<std::vector<uint32_t>, std::array<block, 2>> EvalShamir(const std::vector<KeyShare>& key, size_t logn, uint64_t party_index, bool verifiable) {
         // TODO: might be able to save some performance with using (2, 4) as the relevant points so I can use shifts instead of multiplication. Worth taking a look.
         bool index1 = false;
         bool index2 = false;
@@ -1058,8 +1076,16 @@ namespace DPF {
             index2 = true;
         }
 
-        auto vm1 = DPF::EvalFull8P(key[0], logn, index1);
-        auto vm2 = DPF::EvalFull8P(key[1], logn, index2);
+        auto res1 = DPF::EvalFull8P(key[0], logn, index1, verifiable);
+        auto res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable);
+
+        auto vm1 = res1.first;
+        auto vm2 = res2.first;
+
+        std::array<block, 2> pi;
+        if (verifiable) {
+            pi = prg::hash2(xorArrays(res1.second, res2.second));
+        }
 
         // TODO: check if better to define as a uint64 vector if you're looping anyway
         std::vector<uint32_t> vm(vm1.size());
@@ -1071,7 +1097,8 @@ namespace DPF {
 //            uint64_t tmptmp = static_cast<uint64_t>(vm1[i] ^ vm2[i]);
             vm[i] = ((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP;
         }
-        return vm;
+
+        return std::make_pair(vm, pi);
     }
 
 }
