@@ -7,6 +7,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include "utils.h"
 
 // Compute the dot product of two vectors over Zp
 int64_t dot_product(std::vector<int64_t> a, std::vector<int64_t> b, int64_t p) {
@@ -101,6 +102,17 @@ std::vector<std::pair<int64_t, int64_t>> encode_to_shares(const std::vector<uint
     }
     return shares;
 }
+
+// Helper function to check if all three shares fall on the same line
+// (i.e., this is a valid degree-1 polynomial)
+bool verify_polynomial(const std::vector<uint32_t>& input, int64_t p) {
+    int64_t val = lagrange_interp({1, 2}, {input[0], input[1]}, 3, p);
+
+    std::cout << "Original share: " << input[2] << ", reinterpolated share: " << val << std::endl;
+    return mod(input[2], p) == mod(val, p);
+}
+
+
 // Recover the secret value from a given set of shares over Zp
 int64_t recover_secret(std::vector<std::pair<int64_t, int64_t>> shares, int64_t p) {
     int64_t num_shares = shares.size();

@@ -279,7 +279,7 @@ bool Server::LTZ(std::vector<std::pair<int64_t, int64_t>> shares) {
 //localMPCChecks(amount_deltas, amount_As, amount_Amaxs,
 //        new_balances_A, tag_share_A_primes, tag_share_A1_primes);
 void Server::localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
-                            std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes) {
+                            std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes, std::vector<field>& amount_Brs, std::vector<block> pi_Bs) {
 
     auto amount_deltas_shares = encode_to_shares(amount_deltas);
     auto amount_As_shares = encode_to_shares(amount_deltas);
@@ -298,7 +298,10 @@ void Server::localMPCChecks(std::vector<field>& amount_deltas, std::vector<field
     assert( tagDelta == 0);
     assert( tag1Delta == 0);
 
-    // TODO: Pi and shamir sharing of DPF B
+    // Pi and shamir sharing of DPF B
+    assert(are_arrays_equal_2({pi_Bs[0], pi_Bs[1]}, {pi_Bs[2], pi_Bs[3]})
+    && are_arrays_equal_2({pi_Bs[0], pi_Bs[1]}, {pi_Bs[4], pi_Bs[5]}));
+    assert(verify_polynomial(amount_Brs, PP));
 
     // TODO: Proper LTZ protocol
     // LTZ gates
@@ -356,6 +359,9 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     auto data_A1 = res_A1.first;
     auto data_B = res_B.first;
     auto pi_B = res_B.second;
+//    std::vector<block> pi_B(res_B.second.begin(), res_B.second.end());
+    block pi0_B = pi_B[0];
+    block pi1_B = pi_B[1];
 
     std::cout << "A[0]: " << data_A[0] << std::endl;
 //    std::cout << "pi_B: " << pi_B[0][0] << std::endl;
@@ -379,6 +385,9 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     field amount_delta = mod(static_cast<int64_t>(amount_A) - amount_B, PP);
     field amount_Amax = mod(static_cast<int64_t>(amount_A) - MAX_VALID_INT, PP);
 
+    field r = PRSS();
+    field amount_Br = mod(static_cast<int64_t>(amount_B) + r, PP);
+
     std::cout << "amount_delta: " << amount_delta << ", amount_Amax: " << amount_Amax << ", tag_delta: " << tag_share_A_prime << std::endl;
 
     auto inputs = std::make_tuple(
@@ -387,16 +396,17 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
             amount_Amax, // Input to FLTZ(amount_A - MAX_VALID_INT)
             new_balance_A, // Input to FLTZ(balance_A - amount_A)
             tag_share_A_prime, // access control proof
-            tag_share_A1_prime // access control proof
-            // TODO: missing DPF_B proof
+            tag_share_A1_prime, // access control proof
+            amount_Br, // Masked amount_B as DPF B proof part 2
+            pi0_B, pi1_B // DPF B proof part 1
             );
 
     // Run the round of communication
     auto [output1, output2] = run_round(inputs);
 
     // Process the received data
-    auto [amount_delta1, amount_A1, amount_Amax1, new_balance_A1, tag_share_A_prime1, tag_share_A1_prime1] = output1;
-    auto [amount_delta2, amount_A2, amount_Amax2, new_balance_A2, tag_share_A_prime2, tag_share_A1_prime2] = output2;
+    auto [amount_delta1, amount_A1, amount_Amax1, new_balance_A1, tag_share_A_prime1, tag_share_A1_prime1, amount_Br1, pi0_B1, pi1_B1] = output1;
+    auto [amount_delta2, amount_A2, amount_Amax2, new_balance_A2, tag_share_A_prime2, tag_share_A1_prime2, amount_Br2, pi0_B2, pi1_B2] = output2;
 //    std::cout << "Server" << server_index << " received: " << amount_A_from_server1 << ", " << amount_B_from_server1 << ", " << new_balance_A_from_server1 << std::endl;
 //    std::cout << "Server" << server_index << " received: " << amount_A_from_server2 << ", " << amount_B_from_server2 << ", " << new_balance_A_from_server2 << std::endl;
 
@@ -406,7 +416,17 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     // 4. Check that LTZ(new_balance_A) == false // Make sure that this tx won't turn the balance negative
 
     std::vector<uint32_t> amount_deltas(3, 0), amount_As(3, 0), amount_Amaxs(3, 0),
-            new_balances_A(3, 0), tag_share_A_primes(3, 0), tag_share_A1_primes(3, 0);
+            new_balances_A(3, 0), tag_share_A_primes(3, 0), tag_share_A1_primes(3, 0), amount_Brs(3, 0);
+//    std::vector<std::vector<block>> pi_Bs = {
+//            {ZeroBlock, ZeroBlock},
+//            {ZeroBlock, ZeroBlock},
+//            {ZeroBlock, ZeroBlock}
+//    };
+    std::vector<block> pi_Bs = {
+            pi0_B, pi1_B,
+            pi0_B1, pi1_B1,
+            pi0_B2, pi1_B2
+    };
 
     amount_deltas[server_index] = amount_delta;
     amount_deltas[serverIndex1] = amount_delta1;
@@ -432,9 +452,12 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     tag_share_A1_primes[serverIndex1] = tag_share_A1_prime1;
     tag_share_A1_primes[serverIndex2] = tag_share_A1_prime2;
 
+    amount_Brs[server_index] = amount_Br;
+    amount_Brs[serverIndex1] = amount_Br1;
+    amount_Brs[serverIndex2] = amount_Br2;
 
     localMPCChecks(amount_deltas, amount_As, amount_Amaxs,
-                   new_balances_A, tag_share_A_primes, tag_share_A1_primes);
+                   new_balances_A, tag_share_A_primes, tag_share_A1_primes, amount_Brs, pi_Bs);
 
     // Finalize the transaction after the MPC round / all checks have passed
     ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize

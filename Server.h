@@ -128,8 +128,11 @@ private:
     void initData(size_t N);
     void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
 
+//    void localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
+//                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes, std::vector<field>& amount_Brs);
+//    , std::vector<std::vector<uint32_t>> pi_Bs);
     void localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
-                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes);
+                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes, std::vector<field>& amount_Brs, std::vector<block> pi_Bs);
 
     // Other MPC gates - // TODO: MPC versions
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);

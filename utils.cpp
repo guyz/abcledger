@@ -11,6 +11,43 @@
 #include <iostream>
 #include <emmintrin.h>
 
+bool are_blocks_equal(const block& a, const block& b) {
+    // Compare 128-bit blocks by treating them as an array of integers
+    for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+        if (((uint32_t*)&a)[i] != ((uint32_t*)&b)[i]) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool are_arrays_equal(const std::array<block, 4>& arr1, const std::array<block, 4>& arr2) {
+    for (size_t i = 0; i < arr1.size(); ++i) {
+        if (!are_blocks_equal(arr1[i], arr2[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool are_arrays_equal_2(const std::array<block, 2>& arr1, const std::array<block, 2>& arr2) {
+    for (size_t i = 0; i < arr1.size(); ++i) {
+        if (!are_blocks_equal(arr1[i], arr2[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool are_vectors_equal_2(const std::vector<block>& arr1, const std::vector<block>& arr2) {
+    for (size_t i = 0; i < arr1.size(); ++i) {
+        if (!are_blocks_equal(arr1[i], arr2[i])) {
+            return false;
+        }
+    }
+    return true;
+}
+
 uint32_t modmersenne31(uint32_t x) {
     uint32_t x0 = x >> 31;
     uint32_t x1 = x & PP;
@@ -40,6 +77,7 @@ int mod(int a, int b) {
     }
     return result;
 }
+
 
 block modmersenne31block(block x) {
     // vectorized

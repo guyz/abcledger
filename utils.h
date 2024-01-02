@@ -22,6 +22,11 @@ const block PP_block = _mm_set1_epi32(2147483647);
 //const block PP2_block = _mm_set1_epi32(2147483648);
 const block ONES_block = _mm_set1_epi32(1);
 
+bool are_blocks_equal(const block& a, const block& b);
+bool are_arrays_equal(const std::array<block, 4>& arr1, const std::array<block, 4>& arr2);
+bool are_arrays_equal_2(const std::array<block, 2>& arr1, const std::array<block, 2>& arr2);
+bool are_vectors_equal_2(const std::vector<block>& arr1, const std::vector<block>& arr2);
+
 // mod 2^31 - 1
 uint32_t modmersenne31(uint32_t x);
 uint32_t modmersenne31safe64(uint64_t x); // hackish to prevent overflow when multiplying two 32-bit numbers
