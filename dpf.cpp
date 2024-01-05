@@ -1063,6 +1063,85 @@ namespace DPF {
         return {key_for_p1, key_for_p2, key_for_p3};
     }
 
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> share_seed_helper(block seed) {
+        std::vector<std::vector<std::pair<uint8_t, uint8_t>>> res = {
+                {}, {}, {}
+        };
+
+        reg_arr_union seed_reg;
+        seed_reg.reg = seed;
+        std::vector<uint8_t> vec(seed_reg.arr, seed_reg.arr + 16);
+        for (int i = 0; i < 16; i++) {
+            auto shares = share_gf256(seed_reg.arr[i], 3, 1);
+            res[0].push_back(shares[0]);
+            res[1].push_back(shares[1]);
+            res[2].push_back(shares[2]);
+        }
+
+        return res;
+    }
+
+    std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> DeferredGenShamir(size_t alpha, size_t logn) {
+        auto out0 = GenM_helper(alpha, logn, 0);
+        auto out1 = GenM_helper(alpha, logn, 0);
+
+        auto s00_shares = share_seed_helper(out0.s0);
+        auto s01_shares = share_seed_helper(out0.s1);
+        auto s10_shares = share_seed_helper(out1.s0);
+        auto s11_shares = share_seed_helper(out1.s1);
+        auto t00_shares = share_gf256(out0.t0, 3, 1);
+//        assert(reconstruct_gf256(t00_shares) == 1); // TODO: remove temp
+        auto t10_shares = share_gf256(out1.t0, 3, 1);
+//        assert(reconstruct_gf256(t10_shares) == 1); // TODO: remove temp
+
+        // Party 0 share
+        DeferredKeyShare key0_0 = {
+                out0.keys.first,
+                s00_shares[0],
+                s01_shares[0],
+                t00_shares[0]
+        };
+        DeferredKeyShare key0_1 = {
+                out1.keys.first,
+                s10_shares[0],
+                s11_shares[0],
+                t10_shares[0]
+        };
+        auto key0 = std::make_pair(key0_0, key0_1);
+
+        // Party 1 share
+        DeferredKeyShare key1_0 = {
+                out0.keys.second,
+                s00_shares[1],
+                s01_shares[1],
+                t00_shares[1]
+        };
+        DeferredKeyShare key1_1 = {
+                out1.keys.first,
+                s10_shares[1],
+                s11_shares[1],
+                t10_shares[1]
+        };
+        auto key1 = std::make_pair(key1_0, key1_1);
+
+        // Party 1 share
+        DeferredKeyShare key2_0 = {
+                out0.keys.second,
+                s00_shares[2],
+                s01_shares[2],
+                t00_shares[2]
+        };
+        DeferredKeyShare key2_1 = {
+                out1.keys.second,
+                s10_shares[2],
+                s11_shares[2],
+                t10_shares[2]
+        };
+        auto key2 = std::make_pair(key2_0, key2_1);
+
+        return {key0, key1, key2};
+    }
+
     std::pair<std::vector<uint32_t>, std::array<block, 2>> EvalShamir(const std::vector<KeyShare>& key, size_t logn, uint64_t party_index, bool verifiable) {
         // TODO: might be able to save some performance with using (2, 4) as the relevant points so I can use shifts instead of multiplication. Worth taking a look.
         bool index1 = false;

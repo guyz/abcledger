@@ -105,6 +105,14 @@ std::vector<std::pair<int64_t, int64_t>> encode_to_shares(const std::vector<uint
     return shares;
 }
 
+std::vector<std::pair<uint8_t, uint8_t>> encode_to_shares_gf256(const std::vector<uint8_t>& input) {
+    std::vector<std::pair<uint8_t, uint8_t>> shares;
+    for (size_t idx = 0; idx < input.size(); ++idx) {
+        shares.emplace_back(static_cast<uint8_t>(idx + 1), static_cast<uint8_t>(input[idx]));
+    }
+    return shares;
+}
+
 // Helper function to check if all three shares fall on the same line
 // (i.e., this is a valid degree-1 polynomial)
 bool verify_polynomial(const std::vector<uint32_t>& input, int64_t p) {
@@ -163,7 +171,8 @@ int gf256_inv(int a) {
     return exp_table[FIELD_SIZE - 1 - log_table[a]];
 }
 
-int gf256_eval_poly(const std::vector<int>& poly, int x) {
+
+int gf256_eval_poly(const std::vector<int>& poly, uint8_t x) {
     int y = 0;
     for (int i = poly.size() - 1; i >= 0; i--) {
         y = gf256_add(gf256_mult(y, x), poly[i]);
@@ -171,10 +180,10 @@ int gf256_eval_poly(const std::vector<int>& poly, int x) {
     return y;
 }
 
-std::vector<std::pair<int, int>> share_gf256(int secret, int n, int t) {
+std::vector<std::pair<uint8_t, uint8_t>> share_gf256(uint8_t secret, int n, int t) {
     std::random_device rd;
     std::mt19937 gen(rd());
-    std::uniform_int_distribution<> distrib(1, FIELD_SIZE - 1);
+    std::uniform_int_distribution<uint8_t> distrib(1, FIELD_SIZE - 1);
     int k = t + 1;
 
     std::vector<int> coefficients(k);
@@ -183,15 +192,15 @@ std::vector<std::pair<int, int>> share_gf256(int secret, int n, int t) {
         coefficients[i] = distrib(gen);
     }
 
-    std::vector<std::pair<int, int>> shares;
+    std::vector<std::pair<uint8_t, uint8_t>> shares;
     for (int i = 1; i <= n; ++i) {
-        shares.push_back({i, gf256_eval_poly(coefficients, i)});
+        shares.push_back({static_cast<uint8_t>(i), static_cast<uint8_t>(gf256_eval_poly(coefficients, i))});
     }
 
     return shares;
 }
 
-int gf256_interpolate(const std::vector<int>& x, const std::vector<int>& y, int at) {
+uint8_t gf256_interpolate(const std::vector<uint8_t>& x, const std::vector<uint8_t>& y, uint8_t at) {
     int result = 0;
     for (size_t i = 0; i < x.size(); i++) {
         int term = y[i];
@@ -204,12 +213,12 @@ int gf256_interpolate(const std::vector<int>& x, const std::vector<int>& y, int 
         }
         result = gf256_add(result, term);
     }
-    return result;
+    return static_cast<uint8_t>(result);
 }
 
-int reconstruct_gf256(const std::vector<std::pair<int, int>>& shares) {
-    std::vector<int> x_values;
-    std::vector<int> y_values;
+uint8_t reconstruct_gf256(const std::vector<std::pair<uint8_t, uint8_t>>& shares) {
+    std::vector<uint8_t> x_values;
+    std::vector<uint8_t> y_values;
 
     for (const auto& share : shares) {
         x_values.push_back(share.first);
@@ -219,36 +228,53 @@ int reconstruct_gf256(const std::vector<std::pair<int, int>>& shares) {
     return gf256_interpolate(x_values, y_values, 0);
 }
 
-std::vector<std::vector<std::pair<int, int>>> share_gf256_vector(const std::vector<int>& secrets, int n, int t) {
-    std::vector<std::vector<std::pair<int, int>>> all_shares;
-    for (int secret : secrets) {
+std::vector<std::vector<std::pair<uint8_t, uint8_t>>> share_gf256_vector(const std::vector<uint8_t>& secrets, int n, int t) {
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> all_shares;
+    for (uint8_t secret : secrets) {
         all_shares.push_back(share_gf256(secret, n, t));
     }
     return all_shares;
 }
 
-std::vector<int> reconstruct_gf256_vector(const std::vector<std::vector<std::pair<int, int>>>& all_shares) {
-    std::vector<int> reconstructed_secrets;
+std::vector<uint8_t> reconstruct_gf256_vector(const std::vector<std::vector<std::pair<uint8_t, uint8_t>>>& all_shares) {
+    std::vector<uint8_t> reconstructed_secrets;
     for (const auto& shares : all_shares) {
         reconstructed_secrets.push_back(reconstruct_gf256(shares));
     }
     return reconstructed_secrets;
 }
 
-// Function to XOR shares of two vectors
-std::vector<std::pair<int, int>> xor_shares_vector(const std::vector<std::pair<int, int>>& x_shares,
-                                                   const std::vector<std::pair<int, int>>& y_shares) {
+std::vector<std::pair<uint8_t, uint8_t>> xor_shares_vector(const std::vector<std::pair<uint8_t, uint8_t>>& x_shares,
+                                                           const std::vector<std::pair<uint8_t, uint8_t>>& y_shares) {
     if (x_shares.size() != y_shares.size()) {
         throw std::invalid_argument("Vectors of shares must be of the same size.");
     }
 
-    std::vector<std::pair<int, int>> z_shares;
+    std::vector<std::pair<uint8_t, uint8_t>> z_shares;
     for (size_t i = 0; i < x_shares.size(); ++i) {
         if (x_shares[i].first != y_shares[i].first) {
             throw std::invalid_argument("Share indices do not match.");
         }
-        z_shares.push_back({x_shares[i].first, gf256_add(x_shares[i].second, y_shares[i].second)});
+        z_shares.push_back({x_shares[i].first, static_cast<uint8_t>(gf256_add(x_shares[i].second, y_shares[i].second))});
     }
 
     return z_shares;
+}
+
+std::pair<uint8_t, uint8_t> xor_shares(const std::pair<uint8_t, uint8_t>& x_shares,
+                                       const std::pair<uint8_t, uint8_t>& y_shares) {
+    if (x_shares.first != y_shares.first) {
+        throw std::invalid_argument("Share indices do not match.");
+    }
+
+    return std::make_pair(x_shares.first, static_cast<uint8_t>(gf256_add(x_shares.second, y_shares.second)));
+}
+
+std::vector<uint8_t> extract_values_gf256(std::vector<std::pair<uint8_t, uint8_t>> shares) {
+    std::vector<uint8_t> res;
+    for (int i = 0; i < shares.size(); i++) {
+        res.push_back(shares[i].second);
+    }
+
+    return res;
 }

@@ -19,6 +19,7 @@
 #include <sstream>
 #include <variant>
 #include <tuple>
+#include <type_traits>
 #include "utils.h"
 #include "dpf.h"
 
@@ -30,6 +31,7 @@ public:
                   const std::vector<DPF::KeyShare>& key_B,
                   field tag_A_share, field tag_A1_share);
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
+    void evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
 
 private:
     int log2N;
@@ -56,77 +58,120 @@ private:
     template <typename... Args>
     std::pair<std::tuple<Args...>, std::tuple<Args...>> run_round(const std::tuple<Args...>& inputs);
 
-    template <typename T>
-    void serialize(std::stringstream& ss, const T& value) {
-        ss.write(reinterpret_cast<const char*>(&value), sizeof(value));
+
+    // Serialize uint32_t
+    void serialize(std::ostringstream& oss, uint32_t value) {
+        oss.write(reinterpret_cast<const char*>(&value), sizeof(value));
     }
 
-    void serialize(std::stringstream& ss, const std::string& value) {
-        uint32_t length = static_cast<uint32_t>(value.size());
-        ss.write(reinterpret_cast<const char*>(&length), sizeof(length));
-        ss.write(value.data(), length);
-    }
-
-    template <typename T>
-    void serialize(std::stringstream& ss, const std::vector<T>& value) {
-        uint32_t length = static_cast<uint32_t>(value.size());
-        ss.write(reinterpret_cast<const char*>(&length), sizeof(length));
-        for (const auto& val : value) {
-            serialize(ss, val);
+// Serialize std::vector<uint32_t>
+    void serialize(std::ostringstream& oss, const std::vector<uint32_t>& vec) {
+        uint32_t size = vec.size();
+        serialize(oss, size);
+        for (auto val : vec) {
+            serialize(oss, val);
         }
     }
 
-    template <typename... Args>
-    std::string serializeData(const Args&... args) {
-        std::stringstream ss;
-        (serialize(ss, args), ...);
-        return ss.str();
+// Serialize std::vector<uint8_t>
+    void serialize(std::ostringstream& oss, const std::vector<uint8_t>& vec) {
+        uint32_t size = vec.size();
+        serialize(oss, size);
+        oss.write(reinterpret_cast<const char*>(vec.data()), vec.size());
     }
 
-    // Deserialize individual types
+// Serialize std::vector<long long int>
+    void serialize(std::ostringstream& oss, const std::vector<long long int>& vec) {
+        uint32_t size = vec.size();
+        serialize(oss, size);
+        for (auto val : vec) {
+            oss.write(reinterpret_cast<const char*>(&val), sizeof(val));
+        }
+    }
+
+// General serialize function using variadic templates
+    template <typename... Args>
+    std::string serializeData(const std::tuple<Args...>& data) {
+        std::ostringstream oss;
+        // This lambda calls 'serialize' for each element in the tuple
+        std::apply([&oss, this](const auto&... args) { ((serialize(oss, args)), ...); }, data);
+        return oss.str();
+    }
+
+// Deserialize uint32_t
+    void deserialize(std::istringstream& iss, uint32_t& value) {
+        iss.read(reinterpret_cast<char*>(&value), sizeof(value));
+    }
+
+// Deserialize std::vector<uint32_t>
+    void deserialize(std::istringstream& iss, std::vector<uint32_t>& vec) {
+        uint32_t size;
+        deserialize(iss, size);
+        vec.resize(size);
+        for (auto& val : vec) {
+            deserialize(iss, val);
+        }
+    }
+
+// Deserialize std::vector<uint8_t>
+    void deserialize(std::istringstream& iss, std::vector<uint8_t>& vec) {
+        uint32_t size;
+        deserialize(iss, size);
+        vec.resize(size);
+        iss.read(reinterpret_cast<char*>(vec.data()), size);
+    }
+
+// Deserialize std::vector<long long int>
+    void deserialize(std::istringstream& iss, std::vector<long long int>& vec) {
+        uint32_t size;
+        deserialize(iss, size);
+        vec.resize(size);
+        for (auto& val : vec) {
+            iss.read(reinterpret_cast<char*>(&val), sizeof(val));
+        }
+    }
+
+// Function to deserialize data into a tuple
+    template <typename... Args, std::size_t... I>
+    std::tuple<Args...> deserializeDataImpl(const std::string& data, std::index_sequence<I...>) {
+        std::istringstream iss(data);
+        std::tuple<Args...> result;
+        ((deserialize(iss, std::get<I>(result))), ...);
+        return result;
+    }
+
+    template <typename... Args>
+    std::tuple<Args...> deserializeData(const std::string& data) {
+        return deserializeDataImpl<Args...>(data, std::index_sequence_for<Args...>{});
+    }
+
+    // Serialize __m128i
+    void serialize(std::ostringstream& oss, const __m128i& value) {
+        oss.write(reinterpret_cast<const char*>(&value), sizeof(value));
+    }
+
+// Deserialize __m128i
+    void deserialize(std::istringstream& iss, __m128i& value) {
+        iss.read(reinterpret_cast<char*>(&value), sizeof(value));
+    }
+
+// Template versions to catch unsupported types
     template <typename T>
-    T deserialize(std::istream& is) {
-        T value;
-        is.read(reinterpret_cast<char*>(&value), sizeof(T));
-        return value;
+    void serialize(std::ostringstream& oss, const T& value) {
+        static_assert(sizeof(T) == 0, "serialize not implemented for this type");
     }
 
-    std::string deserialize(std::istream& is) {
-        uint32_t length;
-        is.read(reinterpret_cast<char*>(&length), sizeof(length));
-        std::string value(length, '\0');
-        is.read(value.data(), length);
-        return value;
-    }
-
-    // Helper function for tuple deserialization
-    template <typename Tuple, size_t... Is>
-    Tuple deserializeTuple(std::istream& is, std::index_sequence<Is...>) {
-        return std::make_tuple(deserialize<std::tuple_element_t<Is, Tuple>>(is)...);
-    }
-
-    template <typename Tuple, std::size_t... I>
-    auto reverseTupleImpl(const Tuple& t, std::index_sequence<I...>) {
-        return std::make_tuple(std::get<sizeof...(I) - 1 - I>(t)...);
-    }
-
-    template <typename... Args>
-    auto reverseTuple(const std::tuple<Args...>& t) {
-        return reverseTupleImpl(t, std::index_sequence_for<Args...>{});
-    }
-
-    // Deserialize a tuple using fold expressions and then reverse it
-    template <typename... Args>
-    auto deserializeData(const std::string& data) {
-        std::stringstream ss(data);
-        auto deserializedTuple = std::make_tuple(deserialize<Args>(ss)...);
-//        return reverseTuple(deserializedTuple);
-        return deserializedTuple;
+    template <typename T>
+    void deserialize(std::istringstream& iss, T& value) {
+        static_assert(sizeof(T) == 0, "deserialize not implemented for this type");
     }
 
 
     void initData(size_t N);
     void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
+
+    std::vector<int64_t> reconstruct_helper(const std::vector<field>& shares0, const std::vector<field>& shares1, const std::vector<field>& shares2);
+    std::vector<uint8_t> reconstruct_helper_gf256(const std::vector<uint8_t>& shares0, const std::vector<uint8_t>& shares1, const std::vector<uint8_t>& shares2);
 
 //    void localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
 //                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes, std::vector<field>& amount_Brs);
@@ -138,7 +183,10 @@ private:
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);
     field PRSS();
     field PRZS();
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> AtoB(field beta_0, field beta_1, field beta_2);
 
+    void reshare(field beta);
+    std::vector<DPF::KeyShare> fixCodeword(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> &key, field beta_0, field beta_1, field beta_2);
 };
 
 

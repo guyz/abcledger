@@ -18,12 +18,17 @@ std::vector<std::pair<int64_t, int64_t>> encode_to_shares(const std::vector<uint
 bool verify_polynomial(const std::vector<uint32_t>& input, int64_t p);
 
 // GF256 (binary) shares
+// Note: the API is uint8, but in practice everything operates over ints. This can be made more efficient but probably not a bottle neck.
 void generate_tables();
-std::vector<std::pair<int, int>> share_gf256(int secret, int n, int t);
-int reconstruct_gf256(const std::vector<std::pair<int, int>>& shares);
-std::vector<std::vector<std::pair<int, int>>> share_gf256_vector(const std::vector<int>& secrets, int n, int t);
-std::vector<int> reconstruct_gf256_vector(const std::vector<std::vector<std::pair<int, int>>>& all_shares);
-std::vector<std::pair<int, int>> xor_shares_vector(const std::vector<std::pair<int, int>>& x_shares,
-                                                   const std::vector<std::pair<int, int>>& y_shares);
+std::vector<std::pair<uint8_t, uint8_t>> share_gf256(uint8_t secret, int n, int t);
+uint8_t reconstruct_gf256(const std::vector<std::pair<uint8_t, uint8_t>>& shares);
+std::vector<std::vector<std::pair<uint8_t, uint8_t>>> share_gf256_vector(const std::vector<uint8_t>& secrets, int n, int t);
+std::vector<uint8_t> reconstruct_gf256_vector(const std::vector<std::vector<std::pair<uint8_t, uint8_t>>>& all_shares);
+std::vector<std::pair<uint8_t, uint8_t>> xor_shares_vector(const std::vector<std::pair<uint8_t, uint8_t>>& x_shares,
+                                                           const std::vector<std::pair<uint8_t, uint8_t>>& y_shares);
+std::pair<uint8_t, uint8_t> xor_shares(const std::pair<uint8_t, uint8_t>& x_shares,
+                                       const std::pair<uint8_t, uint8_t>& y_shares);
+std::vector<uint8_t> extract_values_gf256(std::vector<std::pair<uint8_t, uint8_t>> shares);
+std::vector<std::pair<uint8_t, uint8_t>> encode_to_shares_gf256(const std::vector<uint8_t>& input);
 
 #endif //DPFPIR_SHAMIR_H

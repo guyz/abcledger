@@ -14,7 +14,10 @@ namespace DPF {
 
     struct DeferredKeyShare {
         std::vector<uint8_t> key;
+        std::vector<std::pair<uint8_t , uint8_t>> s0_share;
+        std::vector<std::pair<uint8_t, uint8_t>> s1_share;
 
+        std::pair<uint8_t, uint8_t> t0_share;
     };
 
     std::pair<std::vector<uint8_t>, std::vector<uint8_t> > Gen(size_t alpha, size_t logn);
@@ -40,6 +43,8 @@ namespace DPF {
     std::vector<std::vector<KeyShare>>
     GenShamir(size_t alpha, size_t logn, uint32_t m, bool verifiable = false);
     std::pair<std::vector<uint32_t>, std::array<block, 2>> EvalShamir(const std::vector<KeyShare>& key, size_t logn, uint64_t party_index, bool verifiable = false);
+
+    std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> DeferredGenShamir(size_t alpha, size_t logn);
 
     namespace prg {
         std::array<block, 4> hash1(const block& seed, uint32_t x);

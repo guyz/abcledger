@@ -10,6 +10,8 @@
 #include <cassert>
 #include <iostream>
 #include <emmintrin.h>
+#include "shamir.h"
+#include <random>
 
 bool are_blocks_equal(const block& a, const block& b) {
     // Compare 128-bit blocks by treating them as an array of integers
@@ -105,4 +107,115 @@ block modmersenne31block(block x) {
 //    // END REMOVE
 //
 //    return res.reg;
+}
+
+std::vector<uint8_t> gen_zero_sharing() {
+    auto shares = share_gf256(0, 3, 1);
+    assert(reconstruct_gf256({shares[0], shares[1]}) == 0);
+    return {
+        shares[0].second,
+        shares[1].second,
+        shares[2].second
+    };
+}
+
+int print_fake_zero_triplets_code() {
+    const int numMainVectors = 3;
+    const int numSubVectors = 16;
+    const int numElements = 3;
+
+    generate_tables();
+
+    // Initialize main vectors
+    std::vector<std::vector<uint8_t>> XORRAND0(numSubVectors, std::vector<uint8_t>(numElements));
+    std::vector<std::vector<uint8_t>> XORRAND1(numSubVectors, std::vector<uint8_t>(numElements));
+    std::vector<std::vector<uint8_t>> XORRAND2(numSubVectors, std::vector<uint8_t>(numElements));
+
+    // Populate the vectors
+    for (int i = 0; i < numSubVectors; ++i) {
+        XORRAND0[i] = gen_zero_sharing();
+        XORRAND1[i] = gen_zero_sharing();
+        XORRAND2[i] = gen_zero_sharing();
+    }
+
+    // Print out the CPP code for static initialization
+    std::vector<std::vector<uint8_t>>* XORRANDS[numMainVectors] = {&XORRAND0, &XORRAND1, &XORRAND2};
+    for (int i = 0; i < numMainVectors; ++i) {
+        std::cout << "std::vector<std::vector<uint8_t>> XORRAND" << i << " = {";
+        for (int j = 0; j < numSubVectors; ++j) {
+            std::cout << "{";
+            for (int k = 0; k < numElements; ++k) {
+                std::cout << static_cast<int>((*XORRANDS[i])[j][k]);
+                if (k < numElements - 1) std::cout << ", ";
+            }
+            std::cout << "}";
+            if (j < numSubVectors - 1) std::cout << ", ";
+        }
+        std::cout << "};" << std::endl;
+    }
+
+    return 0;
+}
+
+std::vector<std::pair<uint8_t, uint8_t>> fake_xor_rand(int idx) {
+    std::vector<std::pair<uint8_t, uint8_t>> res;
+    for (int i=0; i<16; i++) {
+        res.push_back(std::make_pair(idx + 1, XORRAND[i][idx]));
+    }
+
+    return res;
+}
+
+void print_fake_block_sharing() {
+    std::random_device rd; // obtain a random number from hardware
+    std::mt19937 gen(rd()); // seed the generator
+    std::uniform_int_distribution<> distr(0, 255); // define the range
+    std::vector<uint8_t> r;
+    std::cout << "r: ";
+    for (int n=0; n<16; ++n) {
+        uint8_t r_i = static_cast<uint8_t>(distr(gen));
+        r.push_back(r_i);
+        std::cout << static_cast<int>(r_i) << ' '; // generate and print 16 random uint8_t numbers
+    }
+    std::cout << std::endl;
+
+    std::cout << "r shares: ";
+    for (int n=0; n<16; ++n) {
+        auto r_i_shares = share_gf256(r[n], 3, 1);
+        std::cout << "{ " << static_cast<int>(r_i_shares[0].second) << ", " << static_cast<int>(r_i_shares[1].second) << ", " << static_cast<int>(r_i_shares[2].second) << " }" << std::endl;
+    }
+    std::cout << std::endl;
+}
+
+uint32_t convertToUint32(const std::vector<uint8_t>& array) {
+    uint32_t result = 0;
+    result |= array[0];                // Least significant byte
+    result |= uint32_t(array[1]) << 8;
+    result |= uint32_t(array[2]) << 16;
+    result |= uint32_t(array[3]) << 24; // Most significant byte
+    return result;
+}
+
+std::vector<uint8_t> convertToUint8Vector(uint32_t value, size_t total_bytes) {
+    std::vector<uint8_t> array;
+
+    // Extract each byte from the uint32_t and insert into the vector
+    array.push_back(static_cast<uint8_t>(value & 0xFF));               // Least significant byte
+    array.push_back(static_cast<uint8_t>((value >> 8) & 0xFF));
+    array.push_back(static_cast<uint8_t>((value >> 16) & 0xFF));
+    array.push_back(static_cast<uint8_t>((value >> 24) & 0xFF));       // Most significant byte
+
+    // Add padding with zeroes to reach the desired size
+    while (array.size() < total_bytes) {
+        array.push_back(0);
+    }
+
+    return array;
+}
+
+void printVector(std::vector<uint8_t> vec) {
+    for (int i = 0; i < vec.size(); i++) {
+        std::cout << static_cast<int>(vec[i]) << ", ";
+    }
+    std::cout << std::endl;
 }

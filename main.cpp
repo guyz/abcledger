@@ -5,7 +5,6 @@
 #include <iostream>
 #include <cassert>
 #include <immintrin.h>
-#include "sss/sss.h"
 #include "shamir.h"
 #include <cstring>
 #include "utils.h"
@@ -445,7 +444,7 @@ int test_hash_functions() {
     return 0;
 }
 
-// TODO: refactor...
+// TODO: refactor - move these to DPF...
 // Serialize
 void serialize(const std::vector<DPF::KeyShare>& data, const std::string& filename) {
     std::ofstream out(filename, std::ios::binary);
@@ -498,6 +497,101 @@ std::vector<DPF::KeyShare> loadVector(int index, std::string filename) {
     return unserialize(DATA_DIR + filename + std::to_string(index) + ".txt");
 }
 
+// Helper function to serialize a vector of pairs
+template<typename T1, typename T2>
+void serializeVectorPair(const std::vector<std::pair<T1, T2>>& vec, std::ofstream& outFile) {
+    size_t vecSize = vec.size();
+    outFile.write(reinterpret_cast<const char*>(&vecSize), sizeof(vecSize));
+    for (const auto& pair : vec) {
+        outFile.write(reinterpret_cast<const char*>(&pair.first), sizeof(pair.first));
+        outFile.write(reinterpret_cast<const char*>(&pair.second), sizeof(pair.second));
+    }
+}
+
+// Helper function to deserialize a vector of pairs
+template<typename T1, typename T2>
+std::vector<std::pair<T1, T2>> deserializeVectorPair(std::ifstream& inFile) {
+    std::vector<std::pair<T1, T2>> vec;
+    size_t vecSize;
+    inFile.read(reinterpret_cast<char*>(&vecSize), sizeof(vecSize));
+    vec.resize(vecSize);
+    for (auto& pair : vec) {
+        inFile.read(reinterpret_cast<char*>(&pair.first), sizeof(pair.first));
+        inFile.read(reinterpret_cast<char*>(&pair.second), sizeof(pair.second));
+    }
+    return vec;
+}
+
+// Helper function to serialize a DeferredKeyShare
+void serializeDeferredKeyShare(const DPF::DeferredKeyShare& dks, std::ofstream& outFile) {
+    // Serialize the 'key' vector
+    size_t keySize = dks.key.size();
+    outFile.write(reinterpret_cast<const char*>(&keySize), sizeof(keySize));
+    outFile.write(reinterpret_cast<const char*>(dks.key.data()), keySize);
+
+    // Serialize 's0_share' and 's1_share' vectors
+    serializeVectorPair(dks.s0_share, outFile);
+    serializeVectorPair(dks.s1_share, outFile);
+
+    // Serialize 't0_share'
+    outFile.write(reinterpret_cast<const char*>(&dks.t0_share.first), sizeof(dks.t0_share.first));
+    outFile.write(reinterpret_cast<const char*>(&dks.t0_share.second), sizeof(dks.t0_share.second));
+}
+
+// Helper function to deserialize a DeferredKeyShare
+DPF::DeferredKeyShare deserializeDeferredKeyShare(std::ifstream& inFile) {
+    DPF::DeferredKeyShare dks;
+
+    // Deserialize the 'key' vector
+    size_t keySize;
+    inFile.read(reinterpret_cast<char*>(&keySize), sizeof(keySize));
+    dks.key.resize(keySize);
+    inFile.read(reinterpret_cast<char*>(dks.key.data()), keySize);
+
+    // Deserialize 's0_share' and 's1_share' vectors
+    dks.s0_share = deserializeVectorPair<uint8_t, uint8_t>(inFile);
+    dks.s1_share = deserializeVectorPair<uint8_t, uint8_t>(inFile);
+
+    // Deserialize 't0_share'
+    inFile.read(reinterpret_cast<char*>(&dks.t0_share.first), sizeof(dks.t0_share.first));
+    inFile.read(reinterpret_cast<char*>(&dks.t0_share.second), sizeof(dks.t0_share.second));
+
+    return dks;
+}
+
+// Serialization function
+void writePair(const std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& pair, const std::string& filename) {
+    std::ofstream outFile(filename, std::ios::binary);
+    if (!outFile.is_open()) {
+        throw std::runtime_error("Unable to open file for writing");
+    }
+
+    // Serialize first DeferredKeyShare
+    serializeDeferredKeyShare(pair.first, outFile);
+
+    // Serialize second DeferredKeyShare
+    serializeDeferredKeyShare(pair.second, outFile);
+
+    outFile.close();
+}
+
+// Deserialization function
+std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> loadPair(const std::string& filename) {
+    std::ifstream inFile(filename, std::ios::binary);
+    if (!inFile.is_open()) {
+        throw std::runtime_error("Unable to open file for reading");
+    }
+
+    // Deserialize first DeferredKeyShare
+    DPF::DeferredKeyShare first = deserializeDeferredKeyShare(inFile);
+
+    // Deserialize second DeferredKeyShare
+    DPF::DeferredKeyShare second = deserializeDeferredKeyShare(inFile);
+
+    inFile.close();
+    return {first, second};
+}
+
 
 bool fileExists(const std::string& fileName) {
     return std::filesystem::exists(fileName);
@@ -506,6 +600,40 @@ bool fileExists(const std::string& fileName) {
 
 void client_send() {
 
+}
+
+// Function to compare two DeferredKeyShare objects for equality
+bool areEqual(const DPF::DeferredKeyShare& dks1, const DPF::DeferredKeyShare& dks2) {
+    return (dks1.key == dks2.key) &&
+           (dks1.s0_share == dks2.s0_share) &&
+           (dks1.s1_share == dks2.s1_share) &&
+           (dks1.t0_share == dks2.t0_share);
+}
+
+// Test function
+void testSerialization() {
+    // Create a DeferredKeyShare object
+    DPF::DeferredKeyShare originalDks;
+    originalDks.key = {1, 2, 3, 4, 5};
+    originalDks.s0_share = {{1, 2}, {3, 4}};
+    originalDks.s1_share = {{5, 6}, {7, 8}};
+    originalDks.t0_share = {9, 10};
+
+    // Serialize it to a file
+    std::string filename = "test_dks.bin";
+    std::ofstream outFile(filename, std::ios::binary);
+    serializeDeferredKeyShare(originalDks, outFile);
+    outFile.close();
+
+    // Deserialize it back
+    std::ifstream inFile(filename, std::ios::binary);
+    DPF::DeferredKeyShare deserializedDks = deserializeDeferredKeyShare(inFile);
+    inFile.close();
+
+    // Compare the original and deserialized objects
+    assert(areEqual(originalDks, deserializedDks));
+
+    std::cout << "Test passed: Serialized and deserialized DeferredKeyShare objects are identical." << std::endl;
 }
 
 void test_client(int serverIndex, int logN) {
@@ -636,6 +764,40 @@ void test_client(int serverIndex, int logN) {
     std::cout << "Done" << std::endl;
 }
 
+void test_client_deferred(int serverIndex, int logN) {
+    int N = 1 << logN;
+    int amount = 7;
+    int senderIndex = 0;
+    int recvIndex = 20;
+
+    // Load/generate data
+    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i;
+
+    auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN);
+    auto fn = DATA_DIR + "kmsAdefer" + std::to_string(serverIndex) + ".txt";
+    if (fileExists(fn)) {
+        kmsAdefer_i = loadPair(fn);
+    } else {
+        // File does not exist
+        for (size_t i = 0; i < kmsAdefer.size(); ++i) {
+            auto curr_fn = DATA_DIR + "kmsAdefer" + std::to_string(i) + ".txt";
+            writePair(kmsAdefer[i], curr_fn);
+        }
+
+        kmsAdefer_i = kmsAdefer[serverIndex];
+    }
+
+//    field beta = 55; Below are shares of shares of beta
+    std::vector<field> beta0 = {847777152, 1485437038, 2123096924};
+    std::vector<field> beta1 = {1261625909, 1239392756, 1217159603};
+    std::vector<field> beta2 = {1923965764, 58674887, 340867657};
+
+    Server server(serverIndex, N);
+    server.evalDeferred(kmsAdefer_i, beta0[serverIndex], beta1[serverIndex], beta2[serverIndex]);
+
+    std::cout << "Done" << std::endl;
+}
+
 void test_server(int serverIndex, int logN) {
     int N = 1 << logN;
 
@@ -653,7 +815,6 @@ void test_server(int serverIndex, int logN) {
 
 // test gf256 shares library
 void test_shamir_gf256() {
-    generate_tables();
 
     // Example usage
     int secret = 123; // The secret to share
@@ -663,7 +824,7 @@ void test_shamir_gf256() {
     auto shares = share_gf256(secret, n, k);
     // Display shares
     for (const auto& share : shares) {
-        std::cout << "Share " << share.first << ": " << share.second << std::endl;
+        std::cout << "Share " << static_cast<int>(share.first) << ": " << static_cast<int>(share.second) << std::endl;
     }
 
     // Reconstruction using any k shares
@@ -675,7 +836,7 @@ void test_shamir_gf256() {
     // Vector of shares
 
     // Example usage with a vector of integers
-    std::vector<int> secrets = {123, 45, 67, 89}; // The secrets to share
+    std::vector<uint8_t> secrets = {123, 45, 67, 89}; // The secrets to share
 
     auto all_shares = share_gf256_vector(secrets, n, k);
 
@@ -688,7 +849,7 @@ void test_shamir_gf256() {
     }
 
     // Reconstruction using any k shares from each set
-    std::vector<std::vector<std::pair<int, int>>> selected_shares;
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> selected_shares;
     for (const auto& shares : all_shares) {
         selected_shares.push_back({shares[0], shares[1]});
     }
@@ -704,14 +865,14 @@ void test_shamir_gf256() {
 
     // Test XOR
     // Example usage with two vectors of integers
-    std::vector<int> x = {123, 45, 67, 89}; // First vector of secrets
-    std::vector<int> y = {12, 34, 56, 78};  // Second vector of secrets
+    std::vector<uint8_t> x = {123, 45, 67, 89}; // First vector of secrets
+    std::vector<uint8_t> y = {12, 34, 56, 78};  // Second vector of secrets
 
     auto x_shares = share_gf256_vector(x, n, k);
     auto y_shares = share_gf256_vector(y, n, k);
 
     // Generate shares of z = x ^ y using the refactored xor_shares_vector function
-    std::vector<std::vector<std::pair<int, int>>> z_shares(x.size());
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> z_shares(x.size());
     for (size_t i = 0; i < x.size(); ++i) {
         z_shares[i] = xor_shares_vector(x_shares[i], y_shares[i]);
     }
@@ -748,7 +909,12 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    test_shamir_gf256();
+    generate_tables();
+//    print_fake_block_sharing();
+
+//    testSerialization();
+//    print_fake_zero_triplets_code();
+//    test_shamir_gf256();
 //    test_hash_functions();
     size_t N = std::strtoull(argv[2], nullptr, 10);
 //    int x = run_playground_tests(N); // misc tests
@@ -761,7 +927,8 @@ int main(int argc, char** argv) {
 //    test_sumproduct();
 
 //    test_server(serverIndex, N);
-    test_client(serverIndex, N);
+    test_client_deferred(serverIndex, N);
+//    test_client(serverIndex, N);
 
     return 0;
 }
