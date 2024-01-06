@@ -333,12 +333,11 @@ namespace DPF {
         res.keys = std::make_pair(ka, kb);
         res.s0 = ConvertBlock(s0);
         res.s1 = ConvertBlock(s1);
-//        res.t0 = t0;
-//        res.t1 = t1;
-//        res.t0 = getT(s0);
-        res.t0 = (res.s0 & 0x01)[1];
-        res.t1 = (res.s1 & 0x01)[1];
-//        res.t1 = getT(s1);
+
+//        res.t0 = (res.s0 & 0x01)[1];
+//        res.t1 = (res.s1 & 0x01)[1];
+        res.t0 = t0;
+        res.t1 = t1;
 
         return res;
     }
@@ -365,8 +364,11 @@ namespace DPF {
 
         while (t0 == t1) {
             genres = GenM_helper(alpha, logn, msg);
-            t0 = genres.t0;
-            t1 = genres.t1;
+//            t0 = genres.t0;
+//            t1 = genres.t1;
+            t0 = (genres.s0 & 0x01)[1];
+            t1 = (genres.s1 & 0x01)[1];
+
         }
 
         uint32_t alpha_offset = alpha - (alpha % 4);
@@ -772,7 +774,7 @@ namespace DPF {
         // Hash it all! For integrity
         for (int i = 0; i < vm.size(); i += 4) {
             s = nodes[i/4];
-            t = (s & 0x01)[1];
+            t = (s & 0x01)[1]; // Note: this isn't the t used to actually determine OCW usage. This might be a problem..
 //                t = getT(s);
             uint32_t i_offset = i - (i % 4);
 

@@ -793,19 +793,19 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
         // Conditional addition of ocw (i.e., [t] * ocw)
         tocw0.push_back(std::make_pair( server_index + 1, t0_0 & ocw0[i]) );
         tocw1.push_back(std::make_pair( server_index + 1, t0_1 & ocw1[i]) );
-        tocw_fake.push_back(std::make_pair( server_index + 1, ocw0[i]) );
-        tocw1_fake.push_back(std::make_pair( server_index + 1, ocw1[i]) );
+//        tocw_fake.push_back(std::make_pair( server_index + 1, ocw0[i]) );
+//        tocw1_fake.push_back(std::make_pair( server_index + 1, ocw1[i]) );
     }
 
 //    auto beta0s0_0 = xor_shares_vector(beta0, key.first.s0_share);
 //    auto beta2s0_1 = xor_shares_vector(beta2, key.second.s0_share);
     auto v0s0_0 = xor_shares_vector(v0_share, key.first.s0_share);
     auto v2s0_1 = xor_shares_vector(v2_share, key.second.s0_share);
-//    auto z0_share = extract_values_gf256(xor_shares_vector(beta0s0_0, tocw0));
-//    auto z1_share = extract_values_gf256(xor_shares_vector(beta1s0_1, tocw1));
-    auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw_fake)); // TODO: these are temp
+//    auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw_fake)); // TODO: these are temp
 //    auto z1_share = extract_values_gf256(v2s0_1);
-    auto z1_share = extract_values_gf256(xor_shares_vector(v2s0_1, tocw1_fake)); // TODO: this works, which prob means I am taking the wrong t's. Clean up and understand - can print out whatever shamir eval gets as the right t.. or simply do LSB of the seeds..
+//    auto z1_share = extract_values_gf256(xor_shares_vector(v2s0_1, tocw1_fake)); // TODO: this works, which prob means I am taking the wrong t's. Clean up and understand - can print out whatever shamir eval gets as the right t.. or simply do LSB of the seeds..
+    auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw0));
+    auto z1_share = extract_values_gf256(xor_shares_vector(v2s0_1, tocw1));
 
     auto inputs2 = std::make_tuple(
             z0_share,
