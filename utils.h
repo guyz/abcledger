@@ -53,7 +53,7 @@ bool are_vectors_equal_2(const std::vector<block>& arr1, const std::vector<block
 // mod 2^31 - 1
 uint32_t modmersenne31(uint32_t x);
 uint32_t modmersenne31safe64(uint64_t x); // hackish to prevent overflow when multiplying two 32-bit numbers
-int mod(int a, int b);
+int64_t mod(int64_t a, int64_t b);
 
 // vectorized (4 ints) mod 2^31 - 1
 block modmersenne31block(block x);
@@ -64,5 +64,6 @@ std::vector<uint8_t> convertToUint8Vector(uint32_t value, size_t total_bytes);
 void printVector(std::vector<uint8_t> vec);
 std::vector<std::pair<uint8_t, uint8_t>> fake_xor_rand(int idx);
 void print_fake_block_sharing();
+std::vector<std::uint32_t> detrandints(int n_size, int p);
 
 #endif //DPFPIR_UTILS_H

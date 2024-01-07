@@ -33,6 +33,14 @@ public:
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
     void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
     std::pair<std::vector<uint32_t>, std::array<block, 2>> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
+    void transferMalicious(const std::vector<DPF::KeyShare>& key_A,
+                                   std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A,
+                                   const std::vector<DPF::KeyShare>& key_A1,
+                                   std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A1,
+                                   const std::vector<DPF::KeyShare>& key_B,
+                                   field tag_A_share, field tag_A1_share,
+                                   field amount_0, field amount_1, field amount_2,
+                                   field one_0, field one_1, field one_2);
 
 private:
     int log2N;
@@ -183,8 +191,11 @@ private:
     // Other MPC gates - // TODO: MPC versions
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);
     field PRSS();
+    std::pair<field, field> PRSS2();
     field PRZS();
     std::vector<std::vector<std::pair<uint8_t, uint8_t>>> AtoB(field beta_0, field beta_1, field beta_2);
+    std::vector<field> multgate_helper(std::vector<field> inputs1, std::vector<field> inputs2);
+    std::vector<field> multfproduct_open(std::vector<field> inputs);
 
     void reshare(field beta);
     std::vector<DPF::KeyShare> fixCodeword(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> &key, field beta_0, field beta_1, field beta_2);

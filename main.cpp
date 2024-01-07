@@ -798,6 +798,78 @@ void test_client_deferred(int serverIndex, int logN) {
     std::cout << "Done" << std::endl;
 }
 
+void test_client_malicious(int serverIndex, int logN) {
+    int N = 1 << logN;
+    int amount = 55;
+    int senderIndex = 0;
+    int recvIndex = 20;
+    uint64_t alpha = 2112445456;
+
+    // Load/generate data
+    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+
+    // Load/generate data
+    std::vector<DPF::KeyShare> kmsA_i;
+    std::vector<DPF::KeyShare> kmsA1_i;
+    std::vector<DPF::KeyShare> kmsB_i;
+
+    auto kmsA = DPF::GenShamir(senderIndex, logN, amount, false);
+    auto kmsA1 = DPF::GenShamir(senderIndex, logN, 1, false);
+    auto kmsB = DPF::GenShamir(recvIndex, logN, amount, true);
+    auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN);
+    auto kmsA1defer = DPF::DeferredGenShamir(senderIndex, logN);
+    auto fn = DATA_DIR + "kmsAdefer" + std::to_string(serverIndex) + ".txt";
+    auto fn1 = DATA_DIR + "kmsA1defer" + std::to_string(serverIndex) + ".txt";
+
+    if (fileExists(fn)) {
+        kmsAdefer_i = loadPair(fn);
+        kmsA1defer_i = loadPair(fn1);
+        kmsA_i = loadVector(serverIndex, "kmsA");
+        kmsA1_i = loadVector(serverIndex, "kmsAone");
+        kmsB_i = loadVector(serverIndex, "kmsB");
+    } else {
+        // File does not exist
+        for (size_t i = 0; i < kmsAdefer.size(); ++i) {
+            auto curr_fn = DATA_DIR + "kmsAdefer" + std::to_string(i) + ".txt";
+            auto curr_fn1 = DATA_DIR + "kmsA1defer" + std::to_string(i) + ".txt";
+            writePair(kmsAdefer[i], curr_fn);
+            writePair(kmsA1defer[i], curr_fn1);
+            writeVector(i, kmsA[i], "kmsA");
+            writeVector(i, kmsA[i], "kmsAone");
+            writeVector(i, kmsB[i], "kmsB");
+        }
+
+        kmsAdefer_i = kmsAdefer[serverIndex];
+        kmsA1defer_i = kmsAdefer[serverIndex];
+        kmsA_i = kmsA[serverIndex];
+        kmsA1_i = kmsA1[serverIndex];
+        kmsB_i = kmsA[serverIndex];
+    }
+
+    // TODO: This shouldn't work without making sure its deterministic, no? Look into this..
+    field tag_A = (alpha*amount) % PP;
+    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = gen_shares(3, 2, tag_A, PP);
+    field tag_A_share = tag_A_shares[serverIndex].second;
+    field tag_A1 = (alpha) % PP;
+    std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
+    field tag_A1_share = tag_A1_shares[serverIndex].second;
+
+//    field beta = 55; Below are shares of shares of amount and ones
+    std::vector<field> beta0 = {847777152, 1485437038, 2123096924};
+    std::vector<field> beta1 = {1261625909, 1239392756, 1217159603};
+    std::vector<field> beta2 = {1923965764, 58674887, 340867657};
+
+    // Shares of 1 - [[1843535466], [1539587284], [1235639102]]. Below are shares of these shares:
+    std::vector<field> one0 = {1368805972, 894076478, 419346984};
+    std::vector<field> one1 = {1920794995, 154519059, 535726770};
+    std::vector<field> one2 = {158492188, 1228828921, 151682007};
+
+    Server server(serverIndex, N);
+    server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share, beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex], one1[serverIndex], one2[serverIndex]);
+
+    std::cout << "Done" << std::endl;
+}
+
 void test_server(int serverIndex, int logN) {
     int N = 1 << logN;
 
@@ -927,8 +999,9 @@ int main(int argc, char** argv) {
 //    test_sumproduct();
 
 //    test_server(serverIndex, N);
-    test_client_deferred(serverIndex, N);
+//    test_client_deferred(serverIndex, N);
 //    test_client(serverIndex, N);
+    test_client_malicious(serverIndex, N);
 
     return 0;
 }

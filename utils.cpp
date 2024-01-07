@@ -72,7 +72,7 @@ uint32_t modmersenne31safe64(uint64_t x) {
 
 // Returns the 'positive mod' - i.e., what we need to operate over a field.
 // Only relevant when computing minus or sub..
-int mod(int a, int b) {
+int64_t mod(int64_t a, int64_t b) {
     int result = a % b;
     if (result < 0) {
         result += b;
@@ -218,4 +218,26 @@ void printVector(std::vector<uint8_t> vec) {
         std::cout << static_cast<int>(vec[i]) << ", ";
     }
     std::cout << std::endl;
+}
+
+// Function to generate a deterministic vector of random uint32_t numbers
+std::vector<std::uint32_t> detrandints(int n_size, int p) {
+    // Seed for the random number generator
+    const unsigned int seed = 123;
+
+    // Create a Mersenne Twister random number generator
+    std::mt19937 rng(seed);
+
+    // Create a distribution for uint32_t
+    std::uniform_int_distribution<std::uint32_t> dist;
+
+    // Create a vector to store the random numbers
+    std::vector<std::uint32_t> randomNumbers;
+
+    // Generate and add random numbers to the vector
+    for (int i = 0; i < n_size; ++i) {
+        randomNumbers.push_back(mod(dist(rng),p));
+    }
+
+    return randomNumbers;
 }

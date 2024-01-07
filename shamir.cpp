@@ -10,6 +10,7 @@
 #include "utils.h"
 #include <random>
 #include <stdexcept>
+#include <cassert>
 
 // Compute the dot product of two vectors over Zp
 int64_t dot_product(std::vector<int64_t> a, std::vector<int64_t> b, int64_t p) {
@@ -133,8 +134,10 @@ int64_t recover_secret(std::vector<std::pair<int64_t, int64_t>> shares, int64_t 
         x_values.push_back(shares[i].first);
         y_values.push_back(shares[i].second);
     }
-
-    return lagrange_interp(x_values, y_values, 0, p);
+    auto res = lagrange_interp(x_values, y_values, 0, p);
+    return mod(res,p);
+//    assert(mod(res,p) == res); // TODO: remove temp
+//    return lagrange_interp(x_values, y_values, 0, p);
 }
 
 

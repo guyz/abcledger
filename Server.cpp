@@ -265,6 +265,15 @@ field Server::PRSS() {
     return rs[server_index];
 }
 
+std::pair<field, field> Server::PRSS2() {
+    // TODO: real PRSS2
+    field rs[3] = {153685505, 402498915, 651312325};
+    field rs2[3] = {1270736703, 985527247, 1196727374};
+    field r = rs[server_index];
+    field r2 = rs2[server_index];
+    return std::make_pair(r, r2);
+}
+
 field Server::PRZS() {
     // TODO: real PRZS
     field rs[3] = {299355974, 2120311573, 1167899503};
@@ -891,4 +900,269 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
 std::pair<std::vector<uint32_t>, std::array<block, 2>> Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
     auto fullkey = fixCodeword(key, beta_0, beta_1, beta_2);
     return DPF::EvalShamir(fullkey, log2N, server_index);
+}
+
+
+// Batch FMult Gates
+std::vector<field> Server::multgate_helper(std::vector<field> inputs1, std::vector<field> inputs2) {
+    std::vector<field> mult;
+    for (int i = 0; i < inputs1.size(); i++) {
+        mult.push_back(mod(static_cast<int64_t>(inputs1[i])*inputs2[i], PP));
+    }
+
+    return multfproduct_open(mult);
+}
+
+// Batch FMult/FProduct gates degree-reduction round
+std::vector<field> Server::multfproduct_open(std::vector<field> inputs) {
+    std::vector<field> rand_inputs, rand2t_shares;
+
+    for (int i = 0; i < inputs.size(); i++) {
+        auto rr = PRSS2();
+        rand2t_shares.push_back(rr.second);
+        rand_inputs.push_back(mod(static_cast<int64_t>(inputs[i]) + rr.first, PP));
+        std::cout << "FmultOpen: inputs[" << i << "]: " << inputs[i] << std::endl;
+        std::cout << "FmultOpen: rand_inputs[" << i << "]: " << rand_inputs[i] << std::endl;
+    }
+
+
+    // Run the round of communication
+    auto [output1, output2] = run_round(make_tuple(rand_inputs));
+
+    // Process the received data
+    auto [rand_outputs1] = output1;
+    auto [rand_outputs2] = output2;
+
+    // Finalize FMult/Fproduct Gate
+    std::vector<field> outputs;
+    auto rand_outputs = reconstruct_helper(rand_inputs, rand_outputs1, rand_outputs2);
+    for (int i = 0; i < rand_outputs.size(); i++) {
+        int64_t ro = mod(rand_outputs[i], PP);
+        std::cout << "FmultOpen: rand_outputs[" << i << "]: " << ro << std::endl;
+        auto res_i = mod(ro - rand2t_shares[i], PP);
+        outputs.push_back(res_i);
+        std::cout << "FmultOpen: outputs[" << i << "]: " << res_i << std::endl;
+    }
+
+    return outputs;
+}
+
+// Malicious version of the protocol
+void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
+                               std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A,
+                               const std::vector<DPF::KeyShare>& key_A1,
+                               std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A1,
+                               const std::vector<DPF::KeyShare>& key_B,
+                               field tag_A_share, field tag_A1_share,
+                               field amount_0, field amount_1, field amount_2,
+                               field one_0, field one_1, field one_2) {
+
+    //// Protocol description. Items in the same line --> round happens in parallel (or they have the same context)
+    // TODO: figure out what is not a must for security.. Open stuff:
+    // 1. Do we need to check amount_A, amount_B, ones_i and amount_i inputs? I think we do because they go through Fmult to randomize and adv can cheat..
+    // 2. Do we need to check [[one]] = 1 or if [[amount]] == [[amount_A]] and [[amount_B]]? TODO: need to make sure TDDPF is maliciously secure first.. Assuming it is, then I think we're covered on [amount], but not sure about [one] - to see why, imagine what happens if the client shares [two] instead - they can make the balance appear larger no?
+    // 3. Do we need to FCheckZero instead of partial openings for access control? See below..
+    // 4. Do we need to check amount_A and amount_B are valid 1-degree polynomials? I don't think so because the MAC [r] already verifies this.. Also FLTZ will fail later..
+    // 5. Do we need to randomize input tags? I don't think so..
+    // 6. I think we can skip field amount_Br = mod(static_cast<int64_t>(amount_B) + r, PP); check because we're checkcing amount_B mac anyway?
+
+    // Randomize inputs:
+    // [r] = Frand()
+    // [D_A] = TDPF.EvalAll(f_A); [amount_A] = sum(D_A);
+    // [D_A1] = TDPF.EvalAll(f_A1)
+    // [D_B], pi_B = TDPF.EvalAll(f_B); [amount_B] = sum(D_B);
+    // for i in [0, 1, 2]: [amount_i_MAC] = FMult([amount_i],[r]); [one_i_MAC] = FMult([one_i],[r]); [amount_A_MAC] = FMult([amount_A], [r]); [amount_B_MAC] = FMult([amount_B], [r])
+    // for i in [0, 1, 2]: [[amount_i]] = ([amount_i], [amount_i_MAC]); Same for all other inputs: [[one_i]], [[amount_A]],
+    // [[D_A]] = ([D_A], TDDPF.EvalAll(g_A, {[amount_0_MAC], [amount_1_MAC], [amount_2_MAC]}))
+    // [[D_A1]] = ([D_A1], TDDPF.EvalAll(g_A1, {[one_0_MAC], [one_1_MAC], [one_2_MAC]}))
+    // CheckAccess:
+    // Note: [[in1]] and [in2] means that we run twice: [out] = Gate([in1],[in2]) and [out_MAC] = Gate([in1_MAC],[in2])
+    // [[tag_A]] = Fproduct([[D_A]], [Lambda]); [[tag_A1]] = Fproduct([[D_A1]], [Lambda]); [[balance]] = Fproduct([[D_A1]], [L])
+    // PartialOpen([[tag_A]]); PartialOpen([[tag_A1]]); send pi_B; Check that all is kosher.. // TODO: important - does direct opening here leak information?? I think it does because colluding client and server can infer [r] and cheat. So need to replace PACL.Verify with CheckZero? Also, do we need to check the polynomial degree? Don't think so..
+    // FcheckZero() and the three F_LTZ gates in parallel
+
+    // BatchVerify these (matching explicitly below to make sure we don't miss anything out):
+    //
+    // for i=[0,1,2]: r*[amount_i] == Fmult([r], [amount_i]); r*[one_i] == Fmult([r], [one_i])
+    // r*[amount_A] = Fmult([r], [amount_A]); r*[amount_B] = Fmult([r], [amount_B]) // TODO: do we even need to authenticate these?
+    // r*[tag_A] = Fproduct([D_A_MAC], [Lambda]); r*[tag_A1] = Fproduct([[D_A1_MAC]], [Lambda]); r*[balance] = Fproduct([D_A1_MAC], [L])
+    // FcheckZero, FLTZ?
+
+    // Update the DB if we got here..
+    field r = PRSS();
+    // Expand DPFs
+    // TODO: could/should be parallelized?
+    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
+    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
+    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
+
+    auto data_A = res_A.first;
+    auto data_A1 = res_A1.first;
+    auto data_B = res_B.first;
+    auto pi_B = res_B.second;
+    block pi0_B = pi_B[0];
+    block pi1_B = pi_B[1];
+
+    std::cout << "A[0]: " << data_A[0] << std::endl;
+//    std::cout << "pi_B: " << pi_B[0][0] << std::endl;
+    std::cout << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
+
+    field amount_A = PIRW::sumvecff31(data_A);
+    field amount_B = PIRW::sumvecff31(data_B);
+
+    // Randomize inputs
+    std::vector<field> batch_outputs, batch_outputs_MACs; // collect all gates to batch check at the end
+    std::vector<field> inputs1 = {
+            amount_0, amount_1, amount_2,
+            one_0, one_1, one_2,
+            amount_A, amount_B,
+            tag_A_share, tag_A1_share
+    };
+    batch_outputs.insert(batch_outputs.end(), inputs1.begin(), inputs1.end());
+
+    std::vector<field> inputs2;
+    for (int i = 0; i < inputs1.size(); i++) {
+        inputs2.push_back(r);
+    }
+
+    std::vector<field> outputs = multgate_helper(inputs1, inputs2);
+    batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin(), outputs.end());
+
+    field amount_0_MAC = outputs[0];
+    field amount_1_MAC = outputs[1];
+    field amount_2_MAC = outputs[2];
+    field one_0_MAC = outputs[3];
+    field one_1_MAC = outputs[4];
+    field one_2_MAC = outputs[5];
+    field amount_A_MAC = outputs[6];
+    field amount_B_MAC = outputs[7];
+    field tag_A_share_MAC = outputs[8];
+    field tag_A1_share_MAC = outputs[9];
+    std::cout << "Finished randomizing inputs round" << std::endl;
+
+    // Randomize DPF inputs (fix codewords)
+    auto data_A_MAC = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first;
+    auto data_A1_MAC = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
+
+    // FProduct gates
+    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
+    field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+    field balance_A = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A, ledger)), PP);
+
+    field tag_share_A_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
+    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
+    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A_MAC, ledger)), PP);
+
+    outputs = multfproduct_open({ tag_share_A_prime, tag_share_A1_prime, balance_A, tag_share_A_prime_MAC, tag_share_A1_prime_MAC, balance_A_MAC });
+    batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
+    batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 3, outputs.end());
+
+    std::cout << "Finished Fproduct gates" << std::endl;
+
+    // FCheckZero Gate
+
+
+    // Round 1 - multiply by a random value
+    // TODO: do I even need to authenticate the tags? Easier to just authenticate, but maybe can't cheat here anyway?
+    field tag_delta_A_share = mod(static_cast<int64_t>(tag_A_share) - tag_share_A_prime, PP);
+    field tag_delta_A1_share = mod(static_cast<int64_t>(tag_A1_share) - tag_share_A1_prime, PP);
+    field amount_delta = mod(static_cast<int64_t>(amount_A) - amount_B, PP);
+    field tag_delta_A_share_MAC = mod(static_cast<int64_t>(tag_A_share_MAC) - tag_share_A_prime_MAC, PP);
+    field tag_delta_A1_share_MAC = mod(static_cast<int64_t>(tag_A1_share_MAC) - tag_share_A1_prime_MAC, PP);
+    field amount_delta_MAC = mod(static_cast<int64_t>(amount_A_MAC) - amount_B_MAC, PP);
+
+    field r1 = PRSS();
+    field r2 = PRSS();
+    field r3 = PRSS();
+    std::cout << "amount_delta_share: " << amount_delta << std::endl;
+    std::cout << "r3 share: " << r3 << std::endl;
+    outputs = multgate_helper({tag_delta_A_share, tag_delta_A1_share, amount_delta, tag_delta_A_share_MAC, tag_delta_A1_share_MAC, amount_delta_MAC}, {r1, r2, r3, r1, r2, r3});
+    batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
+    batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 3, outputs.end());
+    std::cout << "Finished CheckZero Round 1" << std::endl;
+
+    // Round 2 - Open and check bit in the clear. Also batch FLTZ gates and check Pi_B
+    // TODO: I'm not dealing with authenticating FLTZ. Need to fix once landed on an implementation.
+    field amount_Amax = mod(static_cast<int64_t>(amount_A) - MAX_VALID_INT, PP);
+    field new_balance_A = mod(static_cast<int64_t>(balance_A) - amount_A, PP);
+
+    auto inputs = std::make_tuple(
+            outputs[0],
+            outputs[1],
+            outputs[2],
+            amount_delta,
+            amount_A, // Input to FLTZ(amount_A)
+            amount_Amax, // Input to FLTZ(amount_A - MAX_VALID_INT)
+            new_balance_A, // Input to FLTZ(balance_A - amount_A)
+            r,
+            pi0_B, pi1_B // DPF B proof part 1
+    );
+
+    // Run the round of communication
+    auto [output1, output2] = run_round(inputs);
+
+    // Process the received data
+    auto [zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_delta1, amount_A1, amount_Amax1, new_balance_A1, r_share1, pi0_B1, pi1_B1] = output1;
+    auto [zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_delta2, amount_A2, amount_Amax2, new_balance_A2, r_share2, pi0_B2, pi1_B2] = output2;
+    auto tmpres = reconstruct_helper({amount_delta}, {amount_delta1}, {amount_delta2});
+    std::cout << "Finished CheckZero Round 2" << std::endl;
+    std::cout << "amount_delta: " << tmpres[0] << std::endl; // TODO: remove this and also from the round .. this is just for testing
+
+    // Run Access Control checks
+    // TODO: check Pis..
+
+    // Reconstruct
+    std::vector<field> shares0 = {outputs[0], outputs[1], outputs[2], amount_A, amount_Amax, new_balance_A, r};
+    std::vector<field> shares1 = {zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, r_share1};
+    std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2};
+    auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
+
+//    assert(reconstructed[0] == 0);
+//    assert(reconstructed[1] == 0);
+    std::cout << "reconstructed[2]: " << reconstructed[2] << std::endl;
+    assert(reconstructed[2] == 0);
+    assert(reconstructed[3] >= 0 && reconstructed[3] << MAX_VALID_INT); // TODO: continue here..
+    assert(reconstructed[4] - MAX_VALID_INT < 0); // Because in the field we only should encode unsigned numbers.. TODO: be consistent about this.. probably best to move to uint everywhere ..
+    assert(reconstructed[5] >= 0 && reconstructed[3] << MAX_VALID_INT);
+
+    //// BatchVerify
+    field reconstructed_r = reconstructed[6];
+    std::vector<field> coeffs = detrandints(batch_outputs.size(), PP);
+    int64_t u, w;
+    u = 0;
+    w = 0;
+    for (int i = 0; i < coeffs.size(); i++) {
+        field tmp = mod(static_cast<int64_t>(coeffs[i])*batch_outputs[i], PP);
+        w = w + tmp;
+        tmp = mod(static_cast<int64_t>(coeffs[i])*batch_outputs_MACs[i], PP);
+        u = u + tmp;
+    }
+    field t = mod(u - reconstructed_r*w, PP);
+
+    // CheckZero on t
+    r1 = PRSS();
+    outputs = multgate_helper({t}, {r1});
+    std::cout << "Finished BatchVerify (CheckZero) Round 1" << std::endl;
+
+    // Open
+    auto inp_check = std::make_tuple(
+            outputs
+    );
+
+    // Run the round of communication
+    auto [out_check1, out_check2] = run_round(inp_check);
+
+    // Process the received data
+    auto [check_share1] = out_check1;
+    auto [check_share2] = out_check2;
+    auto t_reconstructed = reconstruct_helper(outputs, check_share1, check_share2)[0];
+    std::cout << "Finished BatchVerify (CheckZero) Round 2" << std::endl;
+
+    assert(t_reconstructed == 0);
+
+    // Finalize the transaction after the MPC round / all checks have passed
+    ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
+    ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
+
+    std::cout << "All done!" << std::endl;
 }
