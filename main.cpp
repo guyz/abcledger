@@ -793,7 +793,7 @@ void test_client_deferred(int serverIndex, int logN) {
     std::vector<field> beta2 = {1923965764, 58674887, 340867657};
 
     Server server(serverIndex, N);
-    server.evalDeferred(kmsAdefer_i, beta0[serverIndex], beta1[serverIndex], beta2[serverIndex]);
+    server.evalDeferredTest(kmsAdefer_i, beta0[serverIndex], beta1[serverIndex], beta2[serverIndex]);
 
     std::cout << "Done" << std::endl;
 }

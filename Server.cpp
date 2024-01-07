@@ -593,166 +593,151 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
     // TODO: MAC or verify interpolation for malicious security, review this entire function
 
     auto betas = AtoB(beta_0, beta_1, beta_2);
-    auto betas2 = AtoB(beta_0, beta_1, beta_2);
 
     std::vector<std::pair<uint8_t, uint8_t>> beta0 = betas[0];
     std::vector<std::pair<uint8_t, uint8_t>> beta1 = betas[1];
     std::vector<std::pair<uint8_t, uint8_t>> beta2 = betas[2];
 
     auto v0_share = fake_xor_rand(server_index); // TODO: really Frand(xor)
-
-    // TODO: remove temp
-    auto v0_share1 = fake_xor_rand(0);
-    auto v0_share2 = fake_xor_rand(1);
-    auto v0_share3 = fake_xor_rand(2);
-    std::vector<uint8_t> v0_tmp;
-    for (int i=0; i<16; i++) {
-        v0_tmp.push_back(reconstruct_gf256({v0_share1[i], v0_share2[i], v0_share3[i]}));
-    }
-    std::cout << "r: ";
-    printVector(v0_tmp);
-
-    // END remove temp
-
     auto v2_share = xor_shares_vector(beta0, v0_share);
 
-    std::cout << "beta0: ";
-    printVector(extract_values_gf256(beta0));
-    std::cout << "beta1: ";
-    printVector(extract_values_gf256(beta1));
-    std::cout << "beta2: ";
-    printVector(extract_values_gf256(beta2));
+//    std::cout << "beta0: ";
+//    printVector(extract_values_gf256(beta0));
+//    std::cout << "beta1: ";
+//    printVector(extract_values_gf256(beta1));
+//    std::cout << "beta2: ";
+//    printVector(extract_values_gf256(beta2));
 
     auto beta01 = xor_shares_vector(beta0, beta1);
     auto beta12 = xor_shares_vector(beta1, beta2);
 
 
-    // TODO: remove temp
-
-    auto vm2tmp = DPF::EvalFull8M(key.second.key, log2N, 0);
-    for (int i = 0; i<10; i++) {
-        std::cout << "ZeroDPF (1 - second) at " << i << ": " << vm2tmp[i] << std::endl;
-    }
-
-    uint8_t t0_0tmp = key.first.t0_share.second;
-    uint8_t t0_1tmp = key.second.t0_share.second;
-    std::vector<uint8_t> t0_0tmp_vec;
-    std::vector<uint8_t> t0_1tmp_vec;
-
-    t0_0tmp_vec.push_back(t0_0tmp);
-    t0_1tmp_vec.push_back(t0_1tmp);
-
-    auto inputstmp = std::make_tuple(
-            extract_values_gf256(beta0),
-            extract_values_gf256(beta1),
-            extract_values_gf256(beta2),
-            extract_values_gf256(beta01),
-            extract_values_gf256(beta12),
-            t0_0tmp_vec,
-            t0_1tmp_vec,
-            extract_values_gf256(key.first.s0_share),
-            extract_values_gf256(key.second.s0_share),
-            extract_values_gf256(key.first.s1_share),
-            extract_values_gf256(key.second.s1_share)
-    );
-
-    // Run the round of communication
-    auto [output1tmp, output2tmp] = run_round(inputstmp);
-
-    std::vector<uint8_t> share1tmp = std::get<0>(output1tmp);
-    std::vector<uint8_t> share2tmp = std::get<0>(output2tmp);
-    auto beta0tmp = reconstruct_helper_gf256(extract_values_gf256(beta0), share1tmp, share2tmp);
-
-    share1tmp = std::get<1>(output1tmp);
-    share2tmp = std::get<1>(output2tmp);
-    auto beta1tmp = reconstruct_helper_gf256(extract_values_gf256(beta1), share1tmp, share2tmp);
-
-    share1tmp = std::get<2>(output1tmp);
-    share2tmp = std::get<2>(output2tmp);
-    auto beta2tmp = reconstruct_helper_gf256(extract_values_gf256(beta2), share1tmp, share2tmp);
-
-    share1tmp = std::get<3>(output1tmp);
-    share2tmp = std::get<3>(output2tmp);
-    auto beta01tmp = reconstruct_helper_gf256(extract_values_gf256(beta01), share1tmp, share2tmp);
-
-    share1tmp = std::get<4>(output1tmp);
-    share2tmp = std::get<4>(output2tmp);
-    auto beta12tmp = reconstruct_helper_gf256(extract_values_gf256(beta12), share1tmp, share2tmp);
-
-    auto tshare1 = std::get<5>(output1tmp);
-    auto tshare2 = std::get<5>(output2tmp);
-
-    std::vector<uint8_t> ytmp(3, 0);
-
-    ytmp[server_index] = t0_0tmp;
-    ytmp[serverIndex1] = tshare1[0];
-    ytmp[serverIndex2] = tshare2[0];
-    auto sharestmp = encode_to_shares_gf256(ytmp);
-
-    uint8_t t0tmp = reconstruct_gf256(sharestmp);
-
-    tshare1 = std::get<6>(output1tmp);
-    tshare2 = std::get<6>(output2tmp);
-
-    ytmp[server_index] = t0_1tmp;
-    ytmp[serverIndex1] = tshare1[0];
-    ytmp[serverIndex2] = tshare2[0];
-    sharestmp = encode_to_shares_gf256(ytmp);
-
-    uint8_t t1tmp = reconstruct_gf256(sharestmp);
-
-    share1tmp = std::get<7>(output1tmp);
-    share2tmp = std::get<7>(output2tmp);
-    auto s0tmp = reconstruct_helper_gf256(extract_values_gf256(key.first.s0_share), share1tmp, share2tmp);
-
-    share1tmp = std::get<8>(output1tmp);
-    share2tmp = std::get<8>(output2tmp);
-    auto s1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s0_share), share1tmp, share2tmp);
-
-    share1tmp = std::get<9>(output1tmp);
-    share2tmp = std::get<9>(output2tmp);
-    auto s1_0tmp = reconstruct_helper_gf256(extract_values_gf256(key.first.s1_share), share1tmp, share2tmp);
-
-    share1tmp = std::get<10>(output1tmp);
-    share2tmp = std::get<10>(output2tmp);
-    auto s1_1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s1_share), share1tmp, share2tmp);
-
-    std::cout << "t0 (0) reconstructed: " << static_cast<int>(t0tmp) << ", t0 (1): " << static_cast<int>(t1tmp) << std::endl;
-
-    std::cout << "beta0 reconstructed: ";
-    printVector(beta0tmp);
-    std::cout << "beta1 reconstructed: ";
-    printVector(beta1tmp);
-    std::cout << "beta2 reconstructed: ";
-    printVector(beta2tmp);
-    std::cout << "beta0 XOR beta1 reconstructed: ";
-    printVector(beta01tmp);
-    std::cout << "beta1 XOR beta2 reconstructed: ";
-    printVector(beta12tmp);
-    std::cout << "s0 (0) reconstructed: ";
-    printVector(s0tmp);
-    std::cout << "s0 (1) reconstructed: ";
-    printVector(s1tmp);
-    std::cout << "s1 (0) reconstructed: ";
-    printVector(s1_0tmp);
-    std::cout << "s1 (1) reconstructed: ";
-    printVector(s1_1tmp);
+//    // TODO: remove temp
+//
+//    auto vm2tmp = DPF::EvalFull8M(key.second.key, log2N, 0);
+//    for (int i = 0; i<10; i++) {
+//        std::cout << "ZeroDPF (1 - second) at " << i << ": " << vm2tmp[i] << std::endl;
+//    }
+//
+//    uint8_t t0_0tmp = key.first.t0_share.second;
+//    uint8_t t0_1tmp = key.second.t0_share.second;
+//    std::vector<uint8_t> t0_0tmp_vec;
+//    std::vector<uint8_t> t0_1tmp_vec;
+//
+//    t0_0tmp_vec.push_back(t0_0tmp);
+//    t0_1tmp_vec.push_back(t0_1tmp);
+//
+//    auto inputstmp = std::make_tuple(
+//            extract_values_gf256(beta0),
+//            extract_values_gf256(beta1),
+//            extract_values_gf256(beta2),
+//            extract_values_gf256(beta01),
+//            extract_values_gf256(beta12),
+//            t0_0tmp_vec,
+//            t0_1tmp_vec,
+//            extract_values_gf256(key.first.s0_share),
+//            extract_values_gf256(key.second.s0_share),
+//            extract_values_gf256(key.first.s1_share),
+//            extract_values_gf256(key.second.s1_share)
+//    );
+//
+//    // Run the round of communication
+//    auto [output1tmp, output2tmp] = run_round(inputstmp);
+//
+//    std::vector<uint8_t> share1tmp = std::get<0>(output1tmp);
+//    std::vector<uint8_t> share2tmp = std::get<0>(output2tmp);
+//    auto beta0tmp = reconstruct_helper_gf256(extract_values_gf256(beta0), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<1>(output1tmp);
+//    share2tmp = std::get<1>(output2tmp);
+//    auto beta1tmp = reconstruct_helper_gf256(extract_values_gf256(beta1), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<2>(output1tmp);
+//    share2tmp = std::get<2>(output2tmp);
+//    auto beta2tmp = reconstruct_helper_gf256(extract_values_gf256(beta2), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<3>(output1tmp);
+//    share2tmp = std::get<3>(output2tmp);
+//    auto beta01tmp = reconstruct_helper_gf256(extract_values_gf256(beta01), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<4>(output1tmp);
+//    share2tmp = std::get<4>(output2tmp);
+//    auto beta12tmp = reconstruct_helper_gf256(extract_values_gf256(beta12), share1tmp, share2tmp);
+//
+//    auto tshare1 = std::get<5>(output1tmp);
+//    auto tshare2 = std::get<5>(output2tmp);
+//
+//    std::vector<uint8_t> ytmp(3, 0);
+//
+//    ytmp[server_index] = t0_0tmp;
+//    ytmp[serverIndex1] = tshare1[0];
+//    ytmp[serverIndex2] = tshare2[0];
+//    auto sharestmp = encode_to_shares_gf256(ytmp);
+//
+//    uint8_t t0tmp = reconstruct_gf256(sharestmp);
+//
+//    tshare1 = std::get<6>(output1tmp);
+//    tshare2 = std::get<6>(output2tmp);
+//
+//    ytmp[server_index] = t0_1tmp;
+//    ytmp[serverIndex1] = tshare1[0];
+//    ytmp[serverIndex2] = tshare2[0];
+//    sharestmp = encode_to_shares_gf256(ytmp);
+//
+//    uint8_t t1tmp = reconstruct_gf256(sharestmp);
+//
+//    share1tmp = std::get<7>(output1tmp);
+//    share2tmp = std::get<7>(output2tmp);
+//    auto s0tmp = reconstruct_helper_gf256(extract_values_gf256(key.first.s0_share), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<8>(output1tmp);
+//    share2tmp = std::get<8>(output2tmp);
+//    auto s1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s0_share), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<9>(output1tmp);
+//    share2tmp = std::get<9>(output2tmp);
+//    auto s1_0tmp = reconstruct_helper_gf256(extract_values_gf256(key.first.s1_share), share1tmp, share2tmp);
+//
+//    share1tmp = std::get<10>(output1tmp);
+//    share2tmp = std::get<10>(output2tmp);
+//    auto s1_1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s1_share), share1tmp, share2tmp);
+//
+//    std::cout << "t0 (0) reconstructed: " << static_cast<int>(t0tmp) << ", t0 (1): " << static_cast<int>(t1tmp) << std::endl;
+//
+//    std::cout << "beta0 reconstructed: ";
+//    printVector(beta0tmp);
+//    std::cout << "beta1 reconstructed: ";
+//    printVector(beta1tmp);
+//    std::cout << "beta2 reconstructed: ";
+//    printVector(beta2tmp);
+//    std::cout << "beta0 XOR beta1 reconstructed: ";
+//    printVector(beta01tmp);
+//    std::cout << "beta1 XOR beta2 reconstructed: ";
+//    printVector(beta12tmp);
+//    std::cout << "s0 (0) reconstructed: ";
+//    printVector(s0tmp);
+//    std::cout << "s0 (1) reconstructed: ";
+//    printVector(s1tmp);
+//    std::cout << "s1 (0) reconstructed: ";
+//    printVector(s1_0tmp);
+//    std::cout << "s1 (1) reconstructed: ";
+//    printVector(s1_1tmp);
     // END REMOVE TEMP
 
 
-    std::cout << "beta01: ";
-    printVector(extract_values_gf256(beta01));
-    std::cout << "beta12: ";
-    printVector(extract_values_gf256(beta12));
+//    std::cout << "beta01: ";
+//    printVector(extract_values_gf256(beta01));
+//    std::cout << "beta12: ";
+//    printVector(extract_values_gf256(beta12));
 
     auto s01 = xor_shares_vector(key.first.s0_share, key.first.s1_share);
-    std::cout << "s0 xor s1 for DPF0: ";
-    printVector(extract_values_gf256(s01));
+//    std::cout << "s0 xor s1 for DPF0: ";
+//    printVector(extract_values_gf256(s01));
     auto ocw0_share = xor_shares_vector(s01, beta01);
     s01 = xor_shares_vector(key.second.s0_share, key.second.s1_share);
     auto ocw1_share = xor_shares_vector(s01, beta12);
-    std::cout << "s0 xor s1 for DPF1: ";
-    printVector(extract_values_gf256(beta2));
+//    std::cout << "s0 xor s1 for DPF1: ";
+//    printVector(extract_values_gf256(beta2));
 
     std::vector<uint8_t> ocw0_serialized_share = extract_values_gf256(ocw0_share);
     std::vector<uint8_t> ocw1_serialized_share = extract_values_gf256(ocw1_share);
@@ -772,19 +757,18 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
     share2 = std::get<1>(output2);
     auto ocw1 = reconstruct_helper_gf256(ocw1_serialized_share, share1, share2);
 
-
 //     Debug info
-    std::cout << "ocw0: ";
-    for (int i = 0; i < ocw0.size(); i++) {
-        std::cout << static_cast<int>(ocw0[i]) << ", ";
-    }
-    std::cout << std::endl;
-
-    std::cout << "ocw1: ";
-    for (int i = 0; i < ocw1.size(); i++) {
-        std::cout << static_cast<int>(ocw1[i]) << ", ";
-    }
-    std::cout << std::endl;
+//    std::cout << "ocw0: ";
+//    for (int i = 0; i < ocw0.size(); i++) {
+//        std::cout << static_cast<int>(ocw0[i]) << ", ";
+//    }
+//    std::cout << std::endl;
+//
+//    std::cout << "ocw1: ";
+//    for (int i = 0; i < ocw1.size(); i++) {
+//        std::cout << static_cast<int>(ocw1[i]) << ", ";
+//    }
+//    std::cout << std::endl;
 
     uint8_t t0_0 = key.first.t0_share.second;
     uint8_t t0_1 = key.second.t0_share.second;
@@ -797,8 +781,6 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
 //        tocw1_fake.push_back(std::make_pair( server_index + 1, ocw1[i]) );
     }
 
-//    auto beta0s0_0 = xor_shares_vector(beta0, key.first.s0_share);
-//    auto beta2s0_1 = xor_shares_vector(beta2, key.second.s0_share);
     auto v0s0_0 = xor_shares_vector(v0_share, key.first.s0_share);
     auto v2s0_1 = xor_shares_vector(v2_share, key.second.s0_share);
 //    auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw_fake)); // TODO: these are temp
@@ -828,20 +810,18 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
     // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
     key0.z = convertToUint32(z0);
     std::cout << "z0 is : " << key0.z << std::endl;
-//    key0.z = 0; // TODO: remove temp
 
     key1.key = key.second.key;
     std::copy(ocw1.begin(), ocw1.end(), key1.key.end() - 16); // replace the output CW
     // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
     key1.z = convertToUint32(z1);
     std::cout << "z1 is : " << key1.z << std::endl;
-//    key1.z = 0; // TODO: remove temp
     return {key0, key1};
 }
 
-// This is an implementation of TDDPF.BEval. It's in Server as it's a protocol.
+// This is an implementation of TDDPF.BEval - including verbose printouts to test correctness. It's in Server as it's a protocol.
 // However, the goal isn't to call this ad-hoc. This is just for tests and benchmarking.
-void Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
+void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
     std::cout << "Starting with OCW: ";
     for (int i = 0; i < 16; i++) {
         std::cout << static_cast<int>(key.first.key[key.first.key.size() - 16 + i]) << ", ";
@@ -904,4 +884,11 @@ void Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare
     }
 
 
+}
+
+// This is an implementation of TDDPF.BEval. It's in Server as it's a protocol.
+// However, the goal isn't to call this ad-hoc. This is just for tests and benchmarking.
+std::pair<std::vector<uint32_t>, std::array<block, 2>> Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
+    auto fullkey = fixCodeword(key, beta_0, beta_1, beta_2);
+    return DPF::EvalShamir(fullkey, log2N, server_index);
 }

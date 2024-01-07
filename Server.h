@@ -31,7 +31,8 @@ public:
                   const std::vector<DPF::KeyShare>& key_B,
                   field tag_A_share, field tag_A1_share);
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
-    void evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
+    void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
+    std::pair<std::vector<uint32_t>, std::array<block, 2>> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
 
 private:
     int log2N;
