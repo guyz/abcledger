@@ -30,6 +30,7 @@ public:
                   const std::vector<DPF::KeyShare>& key_A1,
                   const std::vector<DPF::KeyShare>& key_B,
                   field tag_A_share, field tag_A1_share);
+
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
     void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
     std::pair<std::vector<uint32_t>, std::array<block, 2>> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
@@ -182,12 +183,6 @@ private:
 
     std::vector<int64_t> reconstruct_helper(const std::vector<field>& shares0, const std::vector<field>& shares1, const std::vector<field>& shares2);
     std::vector<uint8_t> reconstruct_helper_gf256(const std::vector<uint8_t>& shares0, const std::vector<uint8_t>& shares1, const std::vector<uint8_t>& shares2);
-
-//    void localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
-//                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes, std::vector<field>& amount_Brs);
-//    , std::vector<std::vector<uint32_t>> pi_Bs);
-    void localMPCChecks(std::vector<field>& amount_deltas, std::vector<field>& amount_As, std::vector<field>& amount_Amaxs,
-                                std::vector<field>& new_balances_A, std::vector<field>& tag_share_A_primes, std::vector<field>& tag_share_A1_primes, std::vector<field>& amount_Brs, std::vector<block> pi_Bs);
 
     // Other MPC gates - // TODO: MPC versions
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);

@@ -636,6 +636,7 @@ void testSerialization() {
     std::cout << "Test passed: Serialized and deserialized DeferredKeyShare objects are identical." << std::endl;
 }
 
+// NOTE: outdated
 void test_client(int serverIndex, int logN) {
     int N = 1 << logN;
     int amount = 7;
@@ -884,7 +885,14 @@ void test_client_malicious(int serverIndex, int logN) {
     std::vector<field> one2 = {1729613830, 1396337361, 1063060892};
 
     Server server(serverIndex, N);
-    server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share, beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex], one1[serverIndex], one2[serverIndex]);
+
+    // Test semi-honest
+    server.transfer(kmsA_i, kmsA1_i, kmsB_i, tag_A_share, tag_A1_share);
+
+    // Test malicious
+    server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share,
+                                 beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex],
+                                 one1[serverIndex], one2[serverIndex]);
 
     std::cout << "Done" << std::endl;
 }
@@ -1155,6 +1163,8 @@ int main(int argc, char** argv) {
 //    test_server(serverIndex, N);
 //    test_client_deferred(serverIndex, N);
 //    test_client(serverIndex, N);
+
+
     test_client_malicious(serverIndex, N);
 
     return 0;
