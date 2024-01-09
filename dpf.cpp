@@ -237,6 +237,7 @@ namespace DPF {
     GenResult GenM_helper(size_t alpha, size_t logn, uint32_t msg) {
         assert(logn <= 63);
         assert(alpha < (1<<logn));
+        GenResult res;
         std::vector<uint8_t> ka, kb, CW;
 //        PRNG p = PRNG::getTestPRNG();
         PRNG p = PRNG(generate_random_128bit_number()); // NOTE: TestPRNG is deterministic and hard to combine DPFs that way
@@ -285,6 +286,11 @@ namespace DPF {
                 CW.push_back(tLCW);
                 CW.push_back(tRCW);
 
+                // NOTE: Always get the t0,t1 before last because they set whether to apply the correction word
+                // TODO: may need to also get the last t0, t1 as before, for verifiability. Need to check..
+                res.t0 = t0;
+                res.t1 = t1;
+
                 s0 = s0R;
                 if(t0) s0 =  s0 ^ scw;
                 s1 = s1R;
@@ -303,6 +309,12 @@ namespace DPF {
                 CW.insert(CW.end(), (uint8_t*)&scw, ((uint8_t*)&scw) + sizeof(scw));
                 CW.push_back(tLCW);
                 CW.push_back(tRCW);
+
+                // NOTE: Always get the t0,t1 before last because they set whether to apply the correction word
+                // TODO: may need to also get the last t0, t1 as before, for verifiability. Need to check..
+                res.t0 = t0;
+                res.t1 = t1;
+
                 //new s
                 s0 = s0L;
                 if(t0) s0 =  s0 ^ scw;
@@ -329,7 +341,6 @@ namespace DPF {
         ka.insert(ka.end(), CW.begin(), CW.end());
         kb.insert(kb.end(), CW.begin(), CW.end());
 
-        GenResult res;
         res.keys = std::make_pair(ka, kb);
         res.s0 = ConvertBlock(s0);
         res.s1 = ConvertBlock(s1);
@@ -1091,10 +1102,21 @@ namespace DPF {
         auto s01_shares = share_seed_helper(out0.s1);
         auto s10_shares = share_seed_helper(out1.s0);
         auto s11_shares = share_seed_helper(out1.s1);
-        auto t00_shares = share_gf256(out0.t0, 3, 1);
-//        assert(reconstruct_gf256(t00_shares) == 1); // TODO: remove temp
-        auto t10_shares = share_gf256(out1.t0, 3, 1);
-//        assert(reconstruct_gf256(t10_shares) == 1); // TODO: remove temp
+
+        // We actually need to share 0xFF, not simply 1, if t = 1
+        uint8_t mask = 0xFF;
+        std::vector<std::pair<uint8_t, uint8_t>> t00_shares, t10_shares;
+        if (out0.t0 == 1) {
+            t00_shares = share_gf256(mask, 3, 1);
+        } else {
+            t00_shares = share_gf256(0, 3, 1);
+        }
+
+        if (out1.t0 == 1) {
+            t10_shares = share_gf256(mask, 3, 1);
+        } else {
+            t10_shares = share_gf256(0, 3, 1);
+        }
 
         // Party 0 share
         DeferredKeyShare key0_0 = {

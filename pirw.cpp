@@ -3,7 +3,7 @@
 //
 
 #include "pirw.h"
-
+#include "utils.h"
 #include <vector>
 #include <cstdint>
 #include <stdexcept>
@@ -34,7 +34,8 @@ namespace PIRW {
         for (size_t i = 0; i < a.size(); i++)
         {
 //            c[i] = modmersenne31(a[i] + b[i]);
-            c[i] = (a[i] + b[i]) % PP;
+//            c[i] = (a[i] + b[i]) % PP;
+            c[i] = mod((static_cast<int64_t>(a[i]) + b[i]), PP);
         }
 
         return c;
@@ -56,7 +57,8 @@ namespace PIRW {
         for (size_t i = 0; i < a.size(); i++)
         {
 //            c[i] = modmersenne31(a[i] + b[i]);
-            c[i] = (a[i] - b[i]) % PP;
+//            c[i] = (a[i] - b[i]) % PP;
+            c[i] = mod((static_cast<int64_t>(a[i]) - b[i]), PP);
         }
 
         return c;
@@ -80,12 +82,12 @@ namespace PIRW {
         for (size_t i = 0; i < a.size(); i++)
         {
 //            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
-            uint64_t tmp = (static_cast<int64_t>(a[i]) * b[i]) % PP;
+            uint64_t tmp = mod((static_cast<int64_t>(a[i]) * b[i]), PP);
             inner_product += tmp;
 //            inner_product = (inner_product + tmp) % PP;
         }
 
-        return inner_product % PP;
+        return mod(inner_product, PP);
 //        return modmersenne31(inner_product);
     }
 
@@ -102,7 +104,8 @@ namespace PIRW {
             result += a[i];
         }
 
-        return result % PP;
+//        return result % PP;
+        return mod(result, PP);
 //        return modmersenne31(inner_product);
     }
 

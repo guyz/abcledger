@@ -25,7 +25,7 @@
 
 class Server {
 public:
-    Server(int index, size_t N);
+    Server(int index, size_t N, bool local = false);
     void transfer(const std::vector<DPF::KeyShare>& key_A,
                   const std::vector<DPF::KeyShare>& key_A1,
                   const std::vector<DPF::KeyShare>& key_B,
@@ -42,12 +42,13 @@ public:
                                    field amount_0, field amount_1, field amount_2,
                                    field one_0, field one_1, field one_2);
 
+    std::vector<uint32_t> ledger;
+    std::vector<uint32_t> alphas;
+
 private:
     int log2N;
     int N;
     int server_index;
-    std::vector<uint32_t> ledger;
-    std::vector<uint32_t> alphas;
 
     int serverSocket;
     int connectionHandler1;

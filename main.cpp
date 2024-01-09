@@ -835,23 +835,33 @@ void test_client_malicious(int serverIndex, int logN) {
             writePair(kmsAdefer[i], curr_fn);
             writePair(kmsA1defer[i], curr_fn1);
             writeVector(i, kmsA[i], "kmsA");
-            writeVector(i, kmsA[i], "kmsAone");
+            writeVector(i, kmsA1[i], "kmsAone");
             writeVector(i, kmsB[i], "kmsB");
         }
 
         kmsAdefer_i = kmsAdefer[serverIndex];
-        kmsA1defer_i = kmsAdefer[serverIndex];
+        kmsA1defer_i = kmsA1defer[serverIndex];
         kmsA_i = kmsA[serverIndex];
         kmsA1_i = kmsA1[serverIndex];
-        kmsB_i = kmsA[serverIndex];
+        kmsB_i = kmsB[serverIndex];
     }
 
     // TODO: This shouldn't work without making sure its deterministic, no? Look into this..
-    field tag_A = (alpha*amount) % PP;
-    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = gen_shares(3, 2, tag_A, PP);
+//    field tag_A = (alpha*amount) % PP;
+//    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = gen_shares(3, 2, tag_A, PP);
+    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = {
+            {1, 313768438},
+            {2, 407153734},
+            {3, 500539030}
+    };
     field tag_A_share = tag_A_shares[serverIndex].second;
-    field tag_A1 = (alpha) % PP;
-    std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
+//    field tag_A1 = (alpha) % PP;
+//    std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
+    std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = {
+            {1, 1710921975},
+            {2, 1309398494},
+            {3, 907875013}
+    };
     field tag_A1_share = tag_A1_shares[serverIndex].second;
 
 //    field beta = 55; Below are shares of shares of amount and ones
@@ -859,15 +869,66 @@ void test_client_malicious(int serverIndex, int logN) {
     std::vector<field> beta1 = {1261625909, 1239392756, 1217159603};
     std::vector<field> beta2 = {1923965764, 58674887, 340867657};
 
-    // Shares of 1 - [[1843535466], [1539587284], [1235639102]]. Below are shares of these shares:
-    std::vector<field> one0 = {1368805972, 894076478, 419346984};
-    std::vector<field> one1 = {1920794995, 154519059, 535726770};
-    std::vector<field> one2 = {158492188, 1228828921, 151682007};
+//    // Shares of 1 - [[1843535466], [1539587284], [1235639102]]. Below are shares of these shares:
+//    std::vector<field> one0 = {1368805972, 894076478, 419346984};
+//    std::vector<field> one1 = {1920794995, 154519059, 535726770};
+//    std::vector<field> one2 = {158492188, 1228828921, 151682007};
+
+//    Shares of 1 - [[631234535], [1262469069], [1893703603]]
+// These shares are of [[631234535], [1262469069*modinv(2)], [1893703603*modinv(3)]]
+//    [[951264990], [1271295445], [1591325900]]
+//    [[957422624], [209868890], [1609798803]]
+//    [[1729613830], [1396337361], [1063060892]]
+    std::vector<field> one0 = {951264990, 1271295445, 1591325900};
+    std::vector<field> one1 = {957422624, 209868890, 1609798803};
+    std::vector<field> one2 = {1729613830, 1396337361, 1063060892};
 
     Server server(serverIndex, N);
     server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share, beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex], one1[serverIndex], one2[serverIndex]);
 
     std::cout << "Done" << std::endl;
+}
+
+// Helper function - mostly temp, to help debug what happens in the deferred stuf
+void deconstruct_deferreddpf() {
+    std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> kmsA1defer;
+    std::vector<std::vector<std::pair<uint8_t , uint8_t>>> key0_s0_shares, key1_s0_shares, key0_s1_shares, key1_s1_shares;
+    std::vector<std::pair<uint8_t, uint8_t>> key0_t0_shares, key1_t0_shares;
+
+    for (int i = 0; i < 3; i++) {
+//        auto fn1 = DATA_DIR + "kmsA1defer" + std::to_string(i) + ".txt";
+        auto fn1 = DATA_DIR + "kmsAdefer" + std::to_string(i) + ".txt";
+        auto kmsA1defer_i = loadPair(fn1);
+        kmsA1defer.push_back(kmsA1defer_i);
+        key0_s0_shares.push_back(kmsA1defer_i.first.s0_share);
+        key0_s1_shares.push_back(kmsA1defer_i.first.s1_share);
+        key1_s0_shares.push_back(kmsA1defer_i.second.s0_share);
+        key1_s1_shares.push_back(kmsA1defer_i.second.s1_share);
+        key0_t0_shares.push_back(kmsA1defer_i.first.t0_share);
+        key1_t0_shares.push_back(kmsA1defer_i.second.t0_share);
+    }
+
+    std::vector<uint8_t> key0_s0, key0_s1, key1_s0, key1_s1;
+    for (int i = 0; i < key0_s0_shares[0].size(); i++) {
+        key0_s0.push_back(reconstruct_gf256({key0_s0_shares[0][i], key0_s0_shares[1][i], key0_s0_shares[2][i]}));
+        key0_s1.push_back(reconstruct_gf256({key0_s1_shares[0][i], key0_s1_shares[1][i], key0_s1_shares[2][i]}));
+        key1_s0.push_back(reconstruct_gf256({key1_s0_shares[0][i], key1_s0_shares[1][i], key1_s0_shares[2][i]}));
+        key1_s1.push_back(reconstruct_gf256({key1_s1_shares[0][i], key1_s1_shares[1][i], key1_s1_shares[2][i]}));
+    }
+
+    std::cout << "key0, s0: ";
+    printVector(key0_s0);
+    std::cout << "key0, s1: ";
+    printVector(key0_s1);
+    std::cout << "key1, s0: ";
+    printVector(key1_s0);
+    std::cout << "key1, s1: ";
+    printVector(key1_s1);
+
+    auto key0_t0 = reconstruct_gf256(key0_t0_shares);
+    auto key1_t0 = reconstruct_gf256(key1_t0_shares);
+    std::cout << "key0, t0: " << int(key0_t0) << std::endl;
+    std::cout << "key1, t0: " << int(key1_t0) << std::endl;
 }
 
 void test_server(int serverIndex, int logN) {
@@ -971,6 +1032,96 @@ void test_shamir_gf256() {
 
 }
 
+int reconstruct_fake_xor_rand() {
+    auto a = fake_xor_rand(0);
+    auto b = fake_xor_rand(1);
+    auto c = fake_xor_rand(2);
+
+    for (int i = 0; i < a.size(); i++) {
+        auto v = reconstruct_gf256({std::make_pair(1, a[i].second), std::make_pair(2, b[i].second), std::make_pair(3, c[i].second)});
+        std::cout << int(v) << std::endl;
+    }
+//    auto res = reconstruct_gf256_vector({a, b, c});
+
+}
+
+void test_shares_mult_gf256() {
+    uint8_t pub = 176;
+    auto t0_shares = share_gf256(0, 3, 1);
+    uint8_t t1_val = 0xFF;
+    auto t1_shares = share_gf256(t1_val, 3, 1);
+
+    std::vector<std::pair<uint8_t, uint8_t>> res0, res1;
+
+    for (int i = 0; i < t0_shares.size(); i++) {
+        res0.push_back(std::make_pair(t0_shares[i].first, t0_shares[i].second & pub));
+        res1.push_back(std::make_pair(t1_shares[i].first, t1_shares[i].second & pub));
+    }
+    auto v0 = reconstruct_gf256(res0);
+    auto v1 = reconstruct_gf256(res1);
+
+    assert(v0 == (0 & pub));
+    assert(v1 == (t1_val & pub));
+    std::cout << "Test done!" << std::endl;
+}
+
+void mock_fproduct_test(int logN) {
+    int N = 1 << logN;
+    int amount = 55;
+    int senderIndex = 0;
+    int recvIndex = 20;
+    uint64_t alpha = 2112445456;
+
+    // Load/generate data
+    std::vector<std::vector<DPF::KeyShare>> kmsA;
+    std::vector<std::vector<DPF::KeyShare>> kmsA1;
+    std::vector<std::vector<DPF::KeyShare>> kmsB;
+
+    Server server0(0, N, true);
+    Server server1(1, N, true);
+    Server server2(2, N, true);
+
+    std::vector<Server> servers = {server0, server1, server2};
+    std::vector<std::pair<int64_t, int64_t>> tag_shares, balance_shares, tag_delta_shares;
+
+    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = {
+            {1, 313768438},
+            {2, 407153734},
+            {3, 500539030}
+    };
+
+    for (size_t i = 0; i < 3; ++i) {
+        kmsA.push_back(loadVector(i, "kmsA"));
+        kmsA1.push_back(loadVector(i, "kmsAone"));
+        kmsB.push_back(loadVector(i, "kmsB"));
+
+        auto res_A = DPF::EvalShamir(kmsA[i], logN, i, false);
+        auto res_A1 = DPF::EvalShamir(kmsA1[i], logN, i, false);
+        auto res_B = DPF::EvalShamir(kmsB[i], logN, i, true);
+
+        auto data_A = res_A.first;
+        auto data_A1 = res_A1.first;
+        auto data_B = res_B.first;
+
+        field tag = mod(static_cast<int64_t>(PIRW::innerprodff31(servers[i].alphas, data_A)), PP);
+//        field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+        field balance = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A, servers[i].ledger)), PP);
+        field tag_delta_A_share = mod(static_cast<int64_t>(tag_A_shares[i].second) - tag, PP);
+
+        tag_shares.push_back(std::make_pair(i + 1, tag));
+        std::cout << "i: " << i << ", and tag: " << tag << std::endl;
+        balance_shares.push_back(std::make_pair(i + 1, balance));
+        tag_delta_shares.push_back(std::make_pair(i + 1, tag_delta_A_share));
+    }
+
+    auto tag_reconstructed = recover_secret(tag_shares, PP);
+    auto balance_reconstructed = recover_secret(balance_shares, PP);
+    auto tag_delta_reconstructed = recover_secret(tag_delta_shares, PP);
+
+    std::cout << tag_reconstructed << ", and: " << balance_reconstructed << ", and tag_delta:" << tag_delta_reconstructed << std::endl;
+
+}
+
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "
               << std::filesystem::current_path()
@@ -990,7 +1141,10 @@ int main(int argc, char** argv) {
 //    test_hash_functions();
     size_t N = std::strtoull(argv[2], nullptr, 10);
 //    int x = run_playground_tests(N); // misc tests
-
+//    reconstruct_fake_xor_rand();
+//    deconstruct_deferreddpf();
+//    test_shares_mult_gf256();
+    mock_fproduct_test(N);
     int serverIndex = std::atoi(argv[1]);
 
 
