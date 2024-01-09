@@ -45,6 +45,11 @@ public:
 
     std::vector<uint32_t> ledger;
     std::vector<uint32_t> alphas;
+    std::vector<uint8_t> xorrand;
+    std::vector<uint32_t> randt;
+    std::vector<uint32_t> rand2t;
+    std::vector<uint32_t> zero2t;
+    int rand_counter = 0;
 
 private:
     int log2N;
@@ -64,6 +69,8 @@ private:
     void acceptConnections();
     void closeConnections();
     bool waitForAck(int socket);
+
+    void initPreprocessingData();
 
     // Generic run_round function declaration
     template <typename... Args>
@@ -187,8 +194,12 @@ private:
     // Other MPC gates - // TODO: MPC versions
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);
     field PRSS();
+    uint8_t XORPRSS();
     std::pair<field, field> PRSS2();
     field PRZS();
+    field SinglePRSS();
+    std::pair<field, field> SinglePRSS2();
+    field SinglePRZS();
     std::vector<std::vector<std::pair<uint8_t, uint8_t>>> AtoB(field beta_0, field beta_1, field beta_2);
     std::vector<field> multgate_helper(std::vector<field> inputs1, std::vector<field> inputs2);
     std::vector<field> multfproduct_open(std::vector<field> inputs);

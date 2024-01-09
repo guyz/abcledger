@@ -1141,6 +1141,8 @@ int main(int argc, char** argv) {
     }
 
     generate_tables();
+    generate_random_sharings(100000, PP, 123);
+
 //    print_fake_block_sharing();
 
 //    testSerialization();

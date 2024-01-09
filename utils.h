@@ -41,6 +41,13 @@ const std::vector<std::vector<uint8_t>> XORRAND = {
 { 171, 217, 247 }
 };
 
+struct RandData {
+    std::vector<std::vector<uint8_t>> xor_rands;
+    std::vector<std::vector<int64_t>> rands_degt;
+    std::vector<std::vector<int64_t>> rands_deg2t;
+    std::vector<std::vector<int64_t>> zeros_deg2t;
+};
+
 const block PP_block = _mm_set1_epi32(2147483647);
 //const block PP2_block = _mm_set1_epi32(2147483648);
 const block ONES_block = _mm_set1_epi32(1);
@@ -64,6 +71,10 @@ std::vector<uint8_t> convertToUint8Vector(uint32_t value, size_t total_bytes);
 void printVector(std::vector<uint8_t> vec);
 std::vector<std::pair<uint8_t, uint8_t>> fake_xor_rand(int idx);
 void print_fake_block_sharing();
-std::vector<std::uint32_t> detrandints(int n_size, int p);
+std::vector<std::uint32_t> detrandints(int n_size, int p, const unsigned int seed = 123);
+RandData generate_random_sharings(int n_size, int p, const unsigned int seed);
+//uint8_t get_random_xor_share(int db_index, int server_index);
+//int64_t get_random_degt_share(int db_index, int server_index);
+//int64_t get_random_deg2t_share(int db_index, int server_index);
 
 #endif //DPFPIR_UTILS_H

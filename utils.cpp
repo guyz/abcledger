@@ -221,10 +221,7 @@ void printVector(std::vector<uint8_t> vec) {
 }
 
 // Function to generate a deterministic vector of random uint32_t numbers
-std::vector<std::uint32_t> detrandints(int n_size, int p) {
-    // Seed for the random number generator
-    const unsigned int seed = 123;
-
+std::vector<std::uint32_t> detrandints(int n_size, int p, const unsigned int seed) {
     // Create a Mersenne Twister random number generator
     std::mt19937 rng(seed);
 
@@ -241,3 +238,51 @@ std::vector<std::uint32_t> detrandints(int n_size, int p) {
 
     return randomNumbers;
 }
+
+// Function to generate random sharings for the protocol (preprocessing)
+RandData generate_random_sharings(int n_size, int p, const unsigned int seed) {
+    std::vector<std::uint32_t> rands = detrandints(n_size, p, seed);
+    RandData res;
+
+    std::vector<std::vector<uint8_t>> xor_rands = {};
+    std::vector<std::vector<int64_t>> rands_degt = {};
+    std::vector<std::vector<int64_t>> rands_deg2t = {};
+    std::vector<std::vector<int64_t>> zeros_deg2t = {};
+
+    for (int i = 0; i < n_size; i++) {
+        uint8_t rb = rands[i] & 0xFF;
+        auto xor_rand = share_gf256(rb, 3, 1);
+        auto rand_degt = gen_shares(3, 2, rands[i], p); // TODO: refactor to be consistent degree-wise
+        auto rand_deg2t = gen_shares(3, 3, rands[i], p); // TODO: refactor to be consistent degree-wise
+        auto zero_deg2t = gen_shares(3, 3, 0, p); // TODO: refactor to be consistent degree-wise
+        assert(recover_secret(rand_degt, p) == recover_secret(rand_deg2t, p));
+
+        std::vector<uint8_t> xor_rand_values = {xor_rand[0].second, xor_rand[1].second, xor_rand[2].second};
+        std::vector<int64_t> rand_degt_values = {rand_degt[0].second, rand_degt[1].second, rand_degt[2].second};
+        std::vector<int64_t> rand_deg2t_values = {rand_deg2t[0].second, rand_deg2t[1].second, rand_deg2t[2].second};
+        std::vector<int64_t> zero_deg2t_values = {zero_deg2t[0].second, zero_deg2t[1].second, zero_deg2t[2].second};
+
+        xor_rands.push_back(xor_rand_values);
+        rands_degt.push_back(rand_degt_values);
+        rands_deg2t.push_back(rand_deg2t_values);
+        zeros_deg2t.push_back(zero_deg2t_values);
+    }
+    res.xor_rands = xor_rands;
+    res.rands_degt = rands_degt;
+    res.rands_deg2t = rands_deg2t;
+    res.zeros_deg2t = zeros_deg2t;
+
+    return res;
+}
+//
+//uint8_t get_random_xor_share(int db_index, int server_index) {
+//    return xor_rands[db_index][server_index];
+//}
+//
+//int64_t get_random_degt_share(int db_index, int server_index) {
+//    return rands_degt[db_index][server_index];
+//}
+//
+//int64_t get_random_deg2t_share(int db_index, int server_index) {
+//    return rands_deg2t[db_index][server_index];
+//}

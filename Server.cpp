@@ -31,10 +31,46 @@ Server::Server(int index, size_t N, bool local) : N(N), server_index(index), led
 
     std::ifstream ledgerFile(DATA_DIR + "ledger-" + std::to_string(server_index + 1) + ".txt");
     std::ifstream alphasFile(DATA_DIR + "alphas-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream xorFile(DATA_DIR + "xor-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream randtFile(DATA_DIR + "randt-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream rand2tFile(DATA_DIR + "rand2t-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream zero2tFile(DATA_DIR + "zero2t-" + std::to_string(server_index + 1) + ".txt");
 
     // If any file doesn't exist, call initData
     if (!ledgerFile || !alphasFile) {
         initData(N);
+    }
+
+    if (!xorFile) {
+        initPreprocessingData();
+    }
+
+    if (xorFile) {
+        for (uint8_t &value : xorrand) {
+            xorFile >> value;
+        }
+        xorFile.close();
+    }
+
+    if (randtFile) {
+        for (uint32_t &value : randt) {
+            randtFile >> value;
+        }
+        randtFile.close();
+    }
+
+    if (rand2tFile) {
+        for (uint32_t &value : rand2t) {
+            rand2tFile >> value;
+        }
+        rand2tFile.close();
+    }
+
+    if (zero2tFile) {
+        for (uint32_t &value : zero2t) {
+            zero2tFile >> value;
+        }
+        zero2tFile.close();
     }
 
     // Load ledger if file exists
@@ -182,7 +218,47 @@ void Server::closeConnections() {
     }
 }
 
+void Server::initPreprocessingData() {
+    int n = 10000;
+    RandData randData = generate_random_sharings(n, PP, 123);
 
+//    std::vector<uint8_t> ;
+    std::vector<uint32_t> xor1, xor2, xor3, randt1, randt2, randt3, rand2t1, rand2t2, rand2t3, zero2t1, zero2t2, zero2t3;
+
+    for (int i = 0; i < n; i++) {
+        xor1.push_back(randData.xor_rands[i][0]);
+        xor2.push_back(randData.xor_rands[i][1]);
+        xor3.push_back(randData.xor_rands[i][2]);
+
+        randt1.push_back(randData.rands_degt[i][0]);
+        randt2.push_back(randData.rands_degt[i][1]);
+        randt3.push_back(randData.rands_degt[i][2]);
+
+        rand2t1.push_back(randData.rands_deg2t[i][0]);
+        rand2t2.push_back(randData.rands_deg2t[i][1]);
+        rand2t3.push_back(randData.rands_deg2t[i][2]);
+
+        zero2t1.push_back(randData.zeros_deg2t[i][0]);
+        zero2t2.push_back(randData.zeros_deg2t[i][1]);
+        zero2t3.push_back(randData.zeros_deg2t[i][2]);
+    }
+
+    saveToFile(xor1, DATA_DIR + "xor-1.txt");
+    saveToFile(xor2, DATA_DIR + "xor-2.txt");
+    saveToFile(xor3, DATA_DIR + "xor-3.txt");
+
+    saveToFile(randt1, DATA_DIR + "randt-1.txt");
+    saveToFile(randt2, DATA_DIR + "randt-2.txt");
+    saveToFile(randt3, DATA_DIR + "randt-3.txt");
+
+    saveToFile(rand2t1, DATA_DIR + "rand2t-1.txt");
+    saveToFile(rand2t2, DATA_DIR + "rand2t-2.txt");
+    saveToFile(rand2t3, DATA_DIR + "rand2t-3.txt");
+
+    saveToFile(rand2t1, DATA_DIR + "zero2t-1.txt");
+    saveToFile(rand2t2, DATA_DIR + "zero2t-2.txt");
+    saveToFile(rand2t3, DATA_DIR + "zero2t-3.txt");
+}
 
 void Server::initData(size_t N) {
     // Seed the random number generator
@@ -262,12 +338,37 @@ bool Server::waitForAck(int socket) {
 }
 
 field Server::PRSS() {
+    field r = randt[rand_counter];
+    rand_counter = (rand_counter + 1) % randt.size();
+    return r;
+}
+
+uint8_t Server::XORPRSS() {
+    uint8_t r = xorrand[rand_counter];
+    rand_counter = (rand_counter + 1) % randt.size();
+    return r;
+}
+
+std::pair<field, field> Server::PRSS2() {
+    field r = randt[rand_counter];
+    field r2 = rand2t[rand_counter];
+    rand_counter = (rand_counter + 1) % randt.size();
+    return std::make_pair(r, r2);
+}
+
+field Server::PRZS() {
+    field z = zero2t[rand_counter];
+    rand_counter = (rand_counter + 1) % randt.size();
+    return z;
+}
+
+field Server::SinglePRSS() {
     // TODO: real PRSS
     field rs[3] = {153685505, 402498915, 651312325};
     return rs[server_index];
 }
 
-std::pair<field, field> Server::PRSS2() {
+std::pair<field, field> Server::SinglePRSS2() {
     // TODO: real PRSS2
     field rs[3] = {153685505, 402498915, 651312325};
     field rs2[3] = {1270736703, 985527247, 1196727374};
@@ -276,7 +377,7 @@ std::pair<field, field> Server::PRSS2() {
     return std::make_pair(r, r2);
 }
 
-field Server::PRZS() {
+field Server::SinglePRZS() {
     // TODO: real PRZS
     field rs[3] = {299355974, 2120311573, 1167899503};
     return rs[server_index];
@@ -531,9 +632,17 @@ std::vector<std::vector<std::pair<uint8_t, uint8_t>>> Server::AtoB(field beta_0,
     std::vector<std::vector<std::pair<uint8_t, uint8_t>>> betas_shares = {{}, {}, {}};
 
     for (int i = 0; i < 16; i++) {
-        uint8_t v0 = b0[i] ^ XORRAND0[i][server_index];
-        uint8_t v1 = b1[i] ^ XORRAND1[i][server_index];
-        uint8_t v2 = b2[i] ^ XORRAND2[i][server_index];
+        uint8_t r1 = XORPRSS();
+        uint8_t r2 = XORPRSS();
+        uint8_t r3 = XORPRSS();
+
+        uint8_t v0 = b0[i] ^ r1;
+        uint8_t v1 = b1[i] ^ r2;
+        uint8_t v2 = b2[i] ^ r3;
+
+//        uint8_t v0 = b0[i] ^ XORRAND0[i][server_index];
+//        uint8_t v1 = b1[i] ^ XORRAND1[i][server_index];
+//        uint8_t v2 = b2[i] ^ XORRAND2[i][server_index];
 
         betas_shares[0].push_back({server_index + 1, v0});
         betas_shares[1].push_back({server_index + 1, v1});
