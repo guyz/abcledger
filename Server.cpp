@@ -860,14 +860,12 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     }
     std::cout << std::endl;
 
-    // TODO: remove temp? - test key..
     auto vms = DPF::EvalShamir(fullkey, log2N, server_index).first;
 
     for (int i = 0; i<10; i++) {
         std::cout << "Value at " << i << ": " << vms[i] << std::endl;
     }
 
-    // TODO: remove temp
     std::cout << "Sanity checks below.." << std::endl;
 
     bool idx = 0;
@@ -936,8 +934,8 @@ std::vector<field> Server::multfproduct_open(std::vector<field> inputs) {
         auto rr = PRSS2();
         randt_shares.push_back(rr.first);
         rand_inputs.push_back(mod(static_cast<int64_t>(inputs[i]) + rr.second, PP));
-        std::cout << "FmultOpen: inputs[" << i << "]: " << inputs[i] << std::endl;
-        std::cout << "FmultOpen: rand_inputs[" << i << "]: " << rand_inputs[i] << std::endl;
+//        std::cout << "FmultOpen: inputs[" << i << "]: " << inputs[i] << std::endl;
+//        std::cout << "FmultOpen: rand_inputs[" << i << "]: " << rand_inputs[i] << std::endl;
     }
 
 
@@ -953,10 +951,10 @@ std::vector<field> Server::multfproduct_open(std::vector<field> inputs) {
     auto rand_outputs = reconstruct_helper(rand_inputs, rand_outputs1, rand_outputs2);
     for (int i = 0; i < rand_outputs.size(); i++) {
         int64_t ro = mod(rand_outputs[i], PP);
-        std::cout << "FmultOpen: rand_outputs[" << i << "]: " << ro << std::endl;
+//        std::cout << "FmultOpen: rand_outputs[" << i << "]: " << ro << std::endl;
         auto res_i = mod(ro - randt_shares[i], PP);
         outputs.push_back(res_i);
-        std::cout << "FmultOpen: outputs[" << i << "]: " << res_i << std::endl;
+//        std::cout << "FmultOpen: outputs[" << i << "]: " << res_i << std::endl;
     }
 
     return outputs;
@@ -1065,7 +1063,6 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
     // FProduct gates
     field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
-    std::cout << "tag_share_A_prime: " << tag_share_A_prime << std::endl; // TODO: remove temp
     field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
     field balance_A = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
 
@@ -1092,7 +1089,6 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     // Round 1 - multiply by a random value
     // TODO: do I even need to authenticate the tags? Easier to just authenticate, but maybe can't cheat here anyway?
     field tag_delta_A_share = mod(static_cast<int64_t>(tag_A_share) - tag_share_A_prime, PP);
-//    field tag_delta_A_share = mod(tag_share_A_prime, PP);
     field tag_delta_A1_share = mod(static_cast<int64_t>(tag_A1_share) - tag_share_A1_prime, PP);
     field amount_delta = mod(static_cast<int64_t>(amount_A) - amount_B, PP);
     field tag_delta_A_share_MAC = mod(static_cast<int64_t>(tag_A_share_MAC) - tag_share_A_prime_MAC, PP);
@@ -1102,9 +1098,6 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     field r1 = PRSS();
     field r2 = PRSS();
     field r3 = PRSS();
-    std::cout << "amount_delta_share: " << amount_delta << std::endl;
-    std::cout << "r3 share: " << r3 << std::endl;
-    std::cout << "tag_delta_A_share: " << tag_delta_A_share << std::endl; // TODO: remove temptag_delta_A_share
     outputs = multgate_helper({tag_delta_A_share, tag_delta_A1_share, amount_delta, tag_delta_A_share_MAC, tag_delta_A1_share_MAC, amount_delta_MAC}, {r1, r2, r3, r1, r2, r3});
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
     batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 3, outputs.end());
@@ -1144,15 +1137,10 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2};
     auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
 
-//    assert(reconstructed[0] == 0);
-//    assert(reconstructed[1] == 0);
-    std::cout << "reconstructed[2]: " << reconstructed[2] << std::endl; // TODO: remove temp
-    std::cout << "reconstructed[0]:: " << reconstructed[0] << std::endl; // TODO: remove temp
-    std::cout << "reconstructed[4]:: " << reconstructed[4] << std::endl; // TODO: remove temp
-    std::cout << "reconstructed[5]:: " << reconstructed[5] << std::endl; // TODO: remove temp
-    std::cout << "reconstructed[6]:: " << reconstructed[6] << std::endl; // TODO: remove temp
+    assert(reconstructed[0] == 0);
+    assert(reconstructed[1] == 0);
     assert(reconstructed[2] == 0);
-    assert(reconstructed[3] >= 0 && reconstructed[3] < MAX_VALID_INT); // TODO: continue here..
+    assert(reconstructed[3] >= 0 && reconstructed[3] < MAX_VALID_INT);
     assert(reconstructed[4] > MAX_VALID_INT); // Because in the field we only should encode unsigned numbers.. TODO: be consistent about this.. probably best to move to uint everywhere ..
     assert(reconstructed[5] >= 0 && reconstructed[3] < MAX_VALID_INT);
 
@@ -1189,27 +1177,27 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     auto t_reconstructed = reconstruct_helper(outputs, check_share1, check_share2)[0];
     std::cout << "Finished BatchVerify (CheckZero) Round 2 and t = " << t_reconstructed << std::endl;
 
-    // TODO: remove temp
-    // Open
-    auto inp_tmp = std::make_tuple(
-            batch_outputs,
-            batch_outputs_MACs
-    );
-
-    // Run the round of communication
-    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
-
-    // Process the received data
-    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
-    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
-    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
-    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
-
-    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
-        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
-        std::cout << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
-    }
-    // TODO: end remove temp
+//    // TODO: remove temp
+//    // Open
+//    auto inp_tmp = std::make_tuple(
+//            batch_outputs,
+//            batch_outputs_MACs
+//    );
+//
+//    // Run the round of communication
+//    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
+//
+//    // Process the received data
+//    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
+//    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
+//    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
+//    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
+//
+//    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
+//        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
+//        std::cout << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
+//    }
+//    // TODO: end remove temp
 
 
     assert(t_reconstructed == 0);
