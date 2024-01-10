@@ -42,7 +42,8 @@ const std::vector<std::vector<uint8_t>> XORRAND = {
 };
 
 struct RandData {
-    std::vector<std::vector<uint8_t>> xor_rands;
+    std::vector<std::vector<int64_t>> xor_rands;
+    std::vector<std::vector<int64_t>> xor_zeros;
     std::vector<std::vector<int64_t>> rands_degt;
     std::vector<std::vector<int64_t>> rands_deg2t;
     std::vector<std::vector<int64_t>> zeros_deg2t;

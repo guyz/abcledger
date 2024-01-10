@@ -26,12 +26,13 @@
 // TODO: Things to implement:
 // Frand, Fzero, Fltz, PRZS, PRSS
 
-Server::Server(int index, size_t N, bool local) : N(N), server_index(index), ledger(N), alphas(N) {
+Server::Server(int index, size_t N, bool local) : N(N), server_index(index), ledger(N), alphas(N), xorrand(N_RANDS), xorzero(N_RANDS), randt(N_RANDS), rand2t(N_RANDS), zero2t(N_RANDS) {
     log2N = static_cast<int>(std::log2(N));
 
     std::ifstream ledgerFile(DATA_DIR + "ledger-" + std::to_string(server_index + 1) + ".txt");
     std::ifstream alphasFile(DATA_DIR + "alphas-" + std::to_string(server_index + 1) + ".txt");
     std::ifstream xorFile(DATA_DIR + "xor-" + std::to_string(server_index + 1) + ".txt");
+    std::ifstream xorzeroFile(DATA_DIR + "xorzero-" + std::to_string(server_index + 1) + ".txt");
     std::ifstream randtFile(DATA_DIR + "randt-" + std::to_string(server_index + 1) + ".txt");
     std::ifstream rand2tFile(DATA_DIR + "rand2t-" + std::to_string(server_index + 1) + ".txt");
     std::ifstream zero2tFile(DATA_DIR + "zero2t-" + std::to_string(server_index + 1) + ".txt");
@@ -47,9 +48,26 @@ Server::Server(int index, size_t N, bool local) : N(N), server_index(index), led
 
     if (xorFile) {
         for (uint8_t &value : xorrand) {
-            xorFile >> value;
+            uint32_t temp;
+            xorFile >> temp;  // Read a uint32_t value from the file
+
+            // Convert the uint32_t to uint8_t
+            // This example takes the least significant byte.
+            value = static_cast<uint8_t>(temp & 0xFF);
         }
         xorFile.close();
+    }
+
+    if (xorzeroFile) {
+        for (uint8_t &value : xorzero) {
+            uint32_t temp;
+            xorzeroFile >> temp;  // Read a uint32_t value from the file
+
+            // Convert the uint32_t to uint8_t
+            // This example takes the least significant byte.
+            value = static_cast<uint8_t>(temp & 0xFF);
+        }
+        xorzeroFile.close();
     }
 
     if (randtFile) {
@@ -219,16 +237,20 @@ void Server::closeConnections() {
 }
 
 void Server::initPreprocessingData() {
-    int n = 10000;
+    int n = N_RANDS;
     RandData randData = generate_random_sharings(n, PP, 123);
 
 //    std::vector<uint8_t> ;
-    std::vector<uint32_t> xor1, xor2, xor3, randt1, randt2, randt3, rand2t1, rand2t2, rand2t3, zero2t1, zero2t2, zero2t3;
+    std::vector<uint32_t> xor1, xor2, xor3, xorzero1, xorzero2, xorzero3, randt1, randt2, randt3, rand2t1, rand2t2, rand2t3, zero2t1, zero2t2, zero2t3;
 
     for (int i = 0; i < n; i++) {
         xor1.push_back(randData.xor_rands[i][0]);
         xor2.push_back(randData.xor_rands[i][1]);
         xor3.push_back(randData.xor_rands[i][2]);
+
+        xorzero1.push_back(randData.xor_zeros[i][0]);
+        xorzero2.push_back(randData.xor_zeros[i][1]);
+        xorzero3.push_back(randData.xor_zeros[i][2]);
 
         randt1.push_back(randData.rands_degt[i][0]);
         randt2.push_back(randData.rands_degt[i][1]);
@@ -246,6 +268,10 @@ void Server::initPreprocessingData() {
     saveToFile(xor1, DATA_DIR + "xor-1.txt");
     saveToFile(xor2, DATA_DIR + "xor-2.txt");
     saveToFile(xor3, DATA_DIR + "xor-3.txt");
+
+    saveToFile(xorzero1, DATA_DIR + "xorzero-1.txt");
+    saveToFile(xorzero2, DATA_DIR + "xorzero-2.txt");
+    saveToFile(xorzero3, DATA_DIR + "xorzero-3.txt");
 
     saveToFile(randt1, DATA_DIR + "randt-1.txt");
     saveToFile(randt2, DATA_DIR + "randt-2.txt");
@@ -345,6 +371,13 @@ field Server::PRSS() {
 
 uint8_t Server::XORPRSS() {
     uint8_t r = xorrand[rand_counter];
+    rand_counter = (rand_counter + 1) % randt.size();
+    return r;
+}
+
+// NOTE: this is degree t - not 2t
+uint8_t Server::XORPRZS() {
+    uint8_t r = xorzero[rand_counter];
     rand_counter = (rand_counter + 1) % randt.size();
     return r;
 }
@@ -632,9 +665,9 @@ std::vector<std::vector<std::pair<uint8_t, uint8_t>>> Server::AtoB(field beta_0,
     std::vector<std::vector<std::pair<uint8_t, uint8_t>>> betas_shares = {{}, {}, {}};
 
     for (int i = 0; i < 16; i++) {
-        uint8_t r1 = XORPRSS();
-        uint8_t r2 = XORPRSS();
-        uint8_t r3 = XORPRSS();
+        uint8_t r1 = XORPRZS();
+        uint8_t r2 = XORPRZS();
+        uint8_t r3 = XORPRZS();
 
         uint8_t v0 = b0[i] ^ r1;
         uint8_t v1 = b1[i] ^ r2;

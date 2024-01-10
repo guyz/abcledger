@@ -23,6 +23,8 @@
 #include "utils.h"
 #include "dpf.h"
 
+const int N_RANDS = 10000;
+
 class Server {
 public:
     Server(int index, size_t N, bool local = false);
@@ -46,6 +48,7 @@ public:
     std::vector<uint32_t> ledger;
     std::vector<uint32_t> alphas;
     std::vector<uint8_t> xorrand;
+    std::vector<uint8_t> xorzero;
     std::vector<uint32_t> randt;
     std::vector<uint32_t> rand2t;
     std::vector<uint32_t> zero2t;
@@ -195,6 +198,7 @@ private:
     bool LTZ(std::vector<std::pair<int64_t, int64_t>> shares);
     field PRSS();
     uint8_t XORPRSS();
+    uint8_t XORPRZS();
     std::pair<field, field> PRSS2();
     field PRZS();
     field SinglePRSS();

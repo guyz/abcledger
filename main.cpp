@@ -1038,6 +1038,39 @@ void test_shamir_gf256() {
     }
     std::cout << std::endl;
 
+
+    // Test specific values
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> v = {
+            {
+                    std::make_pair(1, 230),
+                    std::make_pair(2, 205),
+                    std::make_pair(3, 212),
+            },
+            {
+                    std::make_pair(1, 245),
+                    std::make_pair(2, 69),
+                    std::make_pair(3, 222),
+            },
+            {
+                    std::make_pair(1, 7),
+                    std::make_pair(2, 140),
+                    std::make_pair(3, 245),
+            },
+            {
+                    std::make_pair(1, 103),
+                    std::make_pair(2, 8),
+                    std::make_pair(3, 45),
+            }
+    };
+
+    for (int i = 0; i < v.size(); i++) {
+        shares = v[i];
+        uint8_t x1 = reconstruct_gf256(shares);
+        uint8_t x2 = reconstruct_gf256({shares[0], shares[1] });
+        std::cout << "x[" << i << "]: " << int(x1) << std::endl;
+        assert (x1 == x2);
+    }
+
 }
 
 int reconstruct_fake_xor_rand() {
@@ -1154,7 +1187,7 @@ int main(int argc, char** argv) {
 //    reconstruct_fake_xor_rand();
 //    deconstruct_deferreddpf();
 //    test_shares_mult_gf256();
-    mock_fproduct_test(N);
+//    mock_fproduct_test(N);
     int serverIndex = std::atoi(argv[1]);
 
 
