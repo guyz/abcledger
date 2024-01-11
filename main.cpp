@@ -92,96 +92,6 @@ void benchmark_mersenne() {
 
 }
 
-// Looking into a specific problem..
-void test_sumproduct_adhoc(int logN) {
-    int N = 1 << logN;
-    std::vector<uint32_t> alphas0(N), alphas1(N), alphas2(N);
-    std::vector<uint32_t> dataA_0(N), dataA_1(N), dataA_2(N);
-    std::ifstream alphasFile0(DATA_DIR + "alphas-1.txt");
-    std::ifstream alphasFile1(DATA_DIR + "alphas-2.txt");
-    std::ifstream alphasFile2(DATA_DIR + "alphas-3.txt");
-
-    std::ifstream dataAFile0(DATA_DIR + "data_A_MAC1.txt");
-    std::ifstream dataAFile1(DATA_DIR + "data_A_MAC2.txt");
-    std::ifstream dataAFile2(DATA_DIR + "data_A_MAC3.txt");
-
-    if (alphasFile0) {
-        for (uint32_t &alpha : alphas0) {
-            alphasFile0 >> alpha;
-        }
-        alphasFile0.close();
-    }
-
-    if (alphasFile1) {
-        for (uint32_t &alpha : alphas1) {
-            alphasFile1 >> alpha;
-        }
-        alphasFile1.close();
-    }
-
-    if (alphasFile2) {
-        for (uint32_t &alpha : alphas2) {
-            alphasFile2 >> alpha;
-        }
-        alphasFile2.close();
-    }
-
-    if (dataAFile0) {
-        for (uint32_t &v : dataA_0) {
-            dataAFile0 >> v;
-        }
-        dataAFile0.close();
-    }
-
-    if (dataAFile1) {
-        for (uint32_t &v : dataA_1) {
-            dataAFile1 >> v;
-        }
-        dataAFile1.close();
-    }
-
-    if (dataAFile2) {
-        for (uint32_t &v : dataA_2) {
-            dataAFile2 >> v;
-        }
-        dataAFile2.close();
-    }
-
-    field share0 = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas0, dataA_0)), PP);
-    field share1 = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas1, dataA_1)), PP);
-    field share2 = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas2, dataA_2)), PP);
-
-    uint32_t ground_truth = 291894509;
-
-    auto s = recover_secret({
-                                    {1, share0},
-                                    {2, share1},
-                                    {3, share2}
-        }, PP);
-
-    for (int i = 0; i < N; i++) {
-
-        share0 = alphas0[i]; share1 = alphas1[i]; share2 = alphas2[i];
-        auto alpha_i = recover_secret({
-                                        {1, share0},
-                                        {2, share1},
-                                        {3, share2}
-                                }, PP);
-        share0 = dataA_0[i]; share1 = dataA_1[i]; share2 = dataA_2[i];
-        auto data_A_i = recover_secret({
-                                              {1, share0},
-                                              {2, share1},
-                                              {3, share2}
-                                      }, PP);
-        auto xy1 = mod(static_cast<int64_t>(alpha_i)*data_A_i, PP);
-        if (data_A_i != 0) {
-            std::cout << "i = " << i << ": alpha_i = " << alpha_i << ", data_A_i = " << data_A_i << ", product = "
-                      << xy1 << std::endl;
-        }
-    }
-    std::cout << "ground_truth = 291894509, s = " << s << std::endl;
-}
-
 void test_sumproduct() {
     const uint64_t N = 10000;
     std::vector<uint32_t> x(N), y(N), x1(N), x2(N), x3(N), y1(N), y2(N), y3(N);
@@ -1503,7 +1413,6 @@ int main(int argc, char** argv) {
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
 //    test_sumproduct();
-//    test_sumproduct_adhoc(N);
 
 //    test_server(serverIndex, N);
 //    test_client_deferred(serverIndex, N);

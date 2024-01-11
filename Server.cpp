@@ -856,13 +856,11 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
 
     uint8_t t0_0 = key.first.t0_share.second;
     uint8_t t0_1 = key.second.t0_share.second;
-    std::vector<std::pair<uint8_t, uint8_t>> tocw0, tocw1, tocw_fake, tocw1_fake;
+    std::vector<std::pair<uint8_t, uint8_t>> tocw0, tocw1;
     for (int i = 0; i < 16; i++) {
         // Conditional addition of ocw (i.e., [t] * ocw)
         tocw0.push_back(std::make_pair( server_index + 1, t0_0 & ocw0[i]) ); // TODO: fix this
         tocw1.push_back(std::make_pair( server_index + 1, t0_1 & ocw1[i]) ); // TODO: fix this
-        tocw_fake.push_back(std::make_pair( server_index + 1, ocw0[i]) );
-        tocw1_fake.push_back(std::make_pair( server_index + 1, ocw1[i]) );
     }
 
     auto v0s0_0 = xor_shares_vector(v0_share, key.first.s0_share);
@@ -1127,55 +1125,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
     // Randomize DPF inputs (fix codewords)
     auto data_A_MAC = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first;
-//    std::cout << "START HERE for 'good one' ----" << std::endl; evalDeferredTest(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC); std::cout << "END HERE ------" << std::endl; // TODO: remove temp
-//    std::cout << "START HERE for 'bad? good one' ----" << std::endl; evalDeferredTest(deferredKey_A, one_0, one_1, one_2); std::cout << "END HERE ------" << std::endl; // TODO: remove temp
     auto data_A1_MAC = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
-//    std::cout << "START HERE ----" << std::endl; evalDeferredTest(deferredKey_A1, one_0, one_1, one_2); std::cout << "END HERE ------" << std::endl; // TODO: remove temp
-//    auto data_A1_MAC = evalDeferred(deferredKey_A1, one_0, one_1, one_2).first; // TODO: remove tmp
-
-    // TODO: remove temp
-
-    for (int i = 0; i<50; i++) {
-        std::cout << "Value at " << i << ": " << data_A_MAC[i] << std::endl;
-    }
-
-    field amount_A_MAC2 = PIRW::sumvecff31(data_A_MAC);
-    field amount_A1_MAC2 = PIRW::sumvecff31(data_A1_MAC);
-
-    std::cout << "amount_A_MAC2 share: " << amount_A_MAC2 << std::endl;
-    std::cout << "amount_A1_MAC2 share: " << amount_A1_MAC2 << std::endl;
-    std::cout << "data_A_MAC[31] share: " << data_A_MAC[31] << std::endl;
-    std::cout << "product[31] share: " << mod(static_cast<int64_t>(alphas[31]*data_A_MAC[31]), PP) << std::endl;
-    std::cout << "data_A_MAC[32] share: " << data_A_MAC[32] << std::endl;
-    std::cout << "product[32] share: " << mod(static_cast<int64_t>(alphas[32]*data_A_MAC[32]), PP) << std::endl;
-
-    saveToFile(data_A_MAC, DATA_DIR + "data_A_MAC" + std::to_string(server_index + 1) + ".txt");
-    saveToFile(data_A1_MAC, DATA_DIR + "data_A1_MAC" + std::to_string(server_index + 1) + ".txt");
-
-    auto inptemp = std::make_tuple(
-            amount_A_MAC,
-            amount_A_MAC2,
-            amount_A1_MAC2,
-            r
-    );
-
-    // Run the round of communication
-    auto [outtemp1, outtemp2] = run_round(inptemp);
-
-    // Process the received data
-    auto [amount_A_MAC_1, amount_A_MAC2_1, amount_A1_MAC2_1, rr1] = outtemp1;
-    auto [amount_A_MAC_2, amount_A_MAC2_2, amount_A1_MAC2_2, rr2] = outtemp2;
-
-    std::vector<field> shares0temp = {amount_A_MAC, amount_A_MAC2, amount_A1_MAC2, r};
-    std::vector<field> shares1temp = {amount_A_MAC_1, amount_A_MAC2_1, amount_A1_MAC2_1, rr1};
-    std::vector<field> shares2temp = {amount_A_MAC_2, amount_A_MAC2_2, amount_A1_MAC2_2, rr2};
-    auto reconstructedtemp = reconstruct_helper(shares0temp, shares1temp, shares2temp);
-    std::cout << "amount_A_MAC (ground truth): " << reconstructedtemp[0] << std::endl;
-    std::cout << "amount_A_MAC2: " << reconstructedtemp[1] << std::endl;
-    std::cout << "amount_A1_MAC2 (needs to be r): " << reconstructedtemp[2] << std::endl;
-    std::cout << "r: " << reconstructedtemp[3] << std::endl;
-
-    // END remove temp
 
     // FProduct gates
     field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
@@ -1189,9 +1139,6 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     outputs = multfproduct_open({ tag_share_A_prime, tag_share_A1_prime, balance_A, tag_share_A_prime_MAC, tag_share_A1_prime_MAC, balance_A_MAC });
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
     batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 3, outputs.end());
-
-    field ttag_share_A_prime_MAC = tag_share_A_prime_MAC; // TODO: remove temp
-    field ttag_share_A1_prime_MAC = tag_share_A1_prime_MAC; // TODO: remove temp
 
     // refresh shares
     tag_share_A_prime = outputs[0];
@@ -1236,7 +1183,6 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
             amount_Amax, // Input to FLTZ(amount_A - MAX_VALID_INT)
             new_balance_A, // Input to FLTZ(balance_A - amount_A)
             r,
-            tag_delta_A_share_MAC, tag_delta_A1_share_MAC, tag_A_share_MAC, tag_share_A_prime_MAC, tag_A1_share_MAC, tag_share_A1_prime_MAC, ttag_share_A_prime_MAC, ttag_share_A1_prime_MAC, // TODO: remove temp
             pi0_B, pi1_B // DPF B proof part 1
     );
 
@@ -1244,28 +1190,18 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     auto [output1, output2] = run_round(inputs);
 
     // Process the received data
-    auto [zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, r_share1, tag_delta_A_share_MAC1, tag_delta_A1_share_MAC1, tag_A_share_MAC1, tag_share_A_prime_MAC1, tag_A1_share_MAC1, tag_share_A1_prime_MAC1, ttag_share_A_prime_MAC1, ttag_share_A1_prime_MAC1, pi0_B1, pi1_B1] = output1;
-    auto [zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2, tag_delta_A_share_MAC2, tag_delta_A1_share_MAC2, tag_A_share_MAC2, tag_share_A_prime_MAC2, tag_A1_share_MAC2, tag_share_A1_prime_MAC2, ttag_share_A_prime_MAC2, ttag_share_A1_prime_MAC2, pi0_B2, pi1_B2] = output2;
+    auto [zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, r_share1, pi0_B1, pi1_B1] = output1;
+    auto [zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2, pi0_B2, pi1_B2] = output2;
     std::cout << "Finished CheckZero Round 2" << std::endl;
 
     // Run Access Control checks
     // TODO: check Pis..
 
     // Reconstruct
-    std::vector<field> shares0 = {outputs[0], outputs[1], outputs[2], amount_A, amount_Amax, new_balance_A, r, tag_delta_A_share_MAC, tag_delta_A1_share_MAC, tag_A_share_MAC, tag_share_A_prime_MAC, tag_A1_share_MAC, tag_share_A1_prime_MAC, ttag_share_A_prime_MAC, ttag_share_A1_prime_MAC};
-    std::vector<field> shares1 = {zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, r_share1, tag_delta_A_share_MAC1, tag_delta_A1_share_MAC1, tag_A_share_MAC1, tag_share_A_prime_MAC1, tag_A1_share_MAC1, tag_share_A1_prime_MAC1, ttag_share_A_prime_MAC1, ttag_share_A1_prime_MAC1};
-    std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2, tag_delta_A_share_MAC2, tag_delta_A1_share_MAC2, tag_A_share_MAC2, tag_share_A_prime_MAC2, tag_A1_share_MAC2, tag_share_A1_prime_MAC2, ttag_share_A_prime_MAC2, ttag_share_A1_prime_MAC2};
+    std::vector<field> shares0 = {outputs[0], outputs[1], outputs[2], amount_A, amount_Amax, new_balance_A, r};
+    std::vector<field> shares1 = {zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, r_share1};
+    std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2};
     auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
-
-
-    std::cout << "tag_delta_A_share_MAC (should be 0): " << reconstructed[7] << std::endl; // TODO: remove temp
-    std::cout << "tag_delta_A1_share_MAC (should be 0) " << reconstructed[8] << std::endl; // TODO: remove temp
-    std::cout << "tag_A_share_MAC: " << reconstructed[9] << std::endl; // TODO: remove temp
-    std::cout << "tag_share_A_prime_MAC (should be the same as above) " << reconstructed[10] << std::endl; // TODO: remove temp
-    std::cout << "tag_A1_share_MAC: " << reconstructed[11] << std::endl; // TODO: remove temp
-    std::cout << "tag_share_A1_prime_MAC (should be the same as above) " << reconstructed[12] << std::endl; // TODO: remove temp
-    std::cout << "tag_share_A_prime_MAC v2 (=? tag_A_share_MAC): " << reconstructed[13] << std::endl; // TODO: remove temp
-    std::cout << "tag_share_A1_prime_MAC v2 (=? tag_A1_share_MAC) " << reconstructed[14] << std::endl; // TODO: remove temp
 
     assert(reconstructed[0] == 0);
     assert(reconstructed[1] == 0);
@@ -1307,27 +1243,27 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     auto t_reconstructed = reconstruct_helper(outputs, check_share1, check_share2)[0];
     std::cout << "Finished BatchVerify (CheckZero) Round 2 and t = " << t_reconstructed << std::endl;
 
-    // TODO: remove temp
-    // Open
-    auto inp_tmp = std::make_tuple(
-            batch_outputs,
-            batch_outputs_MACs
-    );
-
-    // Run the round of communication
-    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
-
-    // Process the received data
-    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
-    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
-    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
-    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
-
-    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
-        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
-        std::cout << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
-    }
-    // TODO: end remove temp
+//    // TODO: remove temp
+//    // Open
+//    auto inp_tmp = std::make_tuple(
+//            batch_outputs,
+//            batch_outputs_MACs
+//    );
+//
+//    // Run the round of communication
+//    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
+//
+//    // Process the received data
+//    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
+//    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
+//    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
+//    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
+//
+//    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
+//        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
+//        std::cout << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
+//    }
+//    // TODO: end remove temp
 
 
 //    assert(t_reconstructed == 0);
