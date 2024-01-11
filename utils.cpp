@@ -73,7 +73,7 @@ uint32_t modmersenne31safe64(uint64_t x) {
 // Returns the 'positive mod' - i.e., what we need to operate over a field.
 // Only relevant when computing minus or sub..
 int64_t mod(int64_t a, int64_t b) {
-    int result = a % b;
+    int64_t result = a % b;
     if (result < 0) {
         result += b;
     }
@@ -279,15 +279,15 @@ RandData generate_random_sharings(int n_size, int p, const unsigned int seed) {
 
     return res;
 }
-//
-//uint8_t get_random_xor_share(int db_index, int server_index) {
-//    return xor_rands[db_index][server_index];
-//}
-//
-//int64_t get_random_degt_share(int db_index, int server_index) {
-//    return rands_degt[db_index][server_index];
-//}
-//
-//int64_t get_random_deg2t_share(int db_index, int server_index) {
-//    return rands_deg2t[db_index][server_index];
-//}
+
+void saveToFile(const std::vector<uint32_t>& data, const std::string& filename) {
+    if (!std::filesystem::exists(DATA_DIR)) {
+        std::filesystem::create_directory(DATA_DIR);
+    }
+
+    std::ofstream outFile(filename);
+    for (const auto &value : data) {
+        outFile << value << std::endl;
+    }
+    outFile.close();
+}

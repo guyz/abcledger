@@ -10,6 +10,10 @@
 #include <stdexcept>
 #include <immintrin.h>
 #include "Defines.h"
+#include <fstream>
+#include <filesystem>
+
+#include <sstream>
 
 const std::string DATA_DIR = "/home/azureuser/data/";
 const int OTHER_PRIME = 4294967111;
@@ -74,8 +78,6 @@ std::vector<std::pair<uint8_t, uint8_t>> fake_xor_rand(int idx);
 void print_fake_block_sharing();
 std::vector<std::uint32_t> detrandints(int n_size, int p, const unsigned int seed = 123);
 RandData generate_random_sharings(int n_size, int p, const unsigned int seed);
-//uint8_t get_random_xor_share(int db_index, int server_index);
-//int64_t get_random_degt_share(int db_index, int server_index);
-//int64_t get_random_deg2t_share(int db_index, int server_index);
+void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
 
 #endif //DPFPIR_UTILS_H

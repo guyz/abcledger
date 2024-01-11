@@ -92,14 +92,109 @@ void benchmark_mersenne() {
 
 }
 
+// Looking into a specific problem..
+void test_sumproduct_adhoc(int logN) {
+    int N = 1 << logN;
+    std::vector<uint32_t> alphas0(N), alphas1(N), alphas2(N);
+    std::vector<uint32_t> dataA_0(N), dataA_1(N), dataA_2(N);
+    std::ifstream alphasFile0(DATA_DIR + "alphas-1.txt");
+    std::ifstream alphasFile1(DATA_DIR + "alphas-2.txt");
+    std::ifstream alphasFile2(DATA_DIR + "alphas-3.txt");
+
+    std::ifstream dataAFile0(DATA_DIR + "data_A_MAC1.txt");
+    std::ifstream dataAFile1(DATA_DIR + "data_A_MAC2.txt");
+    std::ifstream dataAFile2(DATA_DIR + "data_A_MAC3.txt");
+
+    if (alphasFile0) {
+        for (uint32_t &alpha : alphas0) {
+            alphasFile0 >> alpha;
+        }
+        alphasFile0.close();
+    }
+
+    if (alphasFile1) {
+        for (uint32_t &alpha : alphas1) {
+            alphasFile1 >> alpha;
+        }
+        alphasFile1.close();
+    }
+
+    if (alphasFile2) {
+        for (uint32_t &alpha : alphas2) {
+            alphasFile2 >> alpha;
+        }
+        alphasFile2.close();
+    }
+
+    if (dataAFile0) {
+        for (uint32_t &v : dataA_0) {
+            dataAFile0 >> v;
+        }
+        dataAFile0.close();
+    }
+
+    if (dataAFile1) {
+        for (uint32_t &v : dataA_1) {
+            dataAFile1 >> v;
+        }
+        dataAFile1.close();
+    }
+
+    if (dataAFile2) {
+        for (uint32_t &v : dataA_2) {
+            dataAFile2 >> v;
+        }
+        dataAFile2.close();
+    }
+
+    field share0 = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas0, dataA_0)), PP);
+    field share1 = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas1, dataA_1)), PP);
+    field share2 = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas2, dataA_2)), PP);
+
+    uint32_t ground_truth = 291894509;
+
+    auto s = recover_secret({
+                                    {1, share0},
+                                    {2, share1},
+                                    {3, share2}
+        }, PP);
+
+    for (int i = 0; i < N; i++) {
+
+        share0 = alphas0[i]; share1 = alphas1[i]; share2 = alphas2[i];
+        auto alpha_i = recover_secret({
+                                        {1, share0},
+                                        {2, share1},
+                                        {3, share2}
+                                }, PP);
+        share0 = dataA_0[i]; share1 = dataA_1[i]; share2 = dataA_2[i];
+        auto data_A_i = recover_secret({
+                                              {1, share0},
+                                              {2, share1},
+                                              {3, share2}
+                                      }, PP);
+        auto xy1 = mod(static_cast<int64_t>(alpha_i)*data_A_i, PP);
+        if (data_A_i != 0) {
+            std::cout << "i = " << i << ": alpha_i = " << alpha_i << ", data_A_i = " << data_A_i << ", product = "
+                      << xy1 << std::endl;
+        }
+    }
+    std::cout << "ground_truth = 291894509, s = " << s << std::endl;
+}
+
 void test_sumproduct() {
     const uint64_t N = 10000;
     std::vector<uint32_t> x(N), y(N), x1(N), x2(N), x3(N), y1(N), y2(N), y3(N);
+    srand(time(0));
 
     // Fill the array with some values
     for (int i = 0; i < N; i++) {
-        x[i] = rand() % (1 << 15) - 1;
-        y[i] = rand() % (1 << 15) - 1;
+//        x[i] = rand() % (1 << 15) - 1;
+//        y[i] = rand() % (1 << 15) - 1;
+
+        uint32_t maxint = (1 << 32) - 1;
+        x[i] = (rand() % (maxint));
+        y[i] = (rand() % (maxint));
 
         std::vector<std::pair<int64_t, int64_t>> x_i_shares = gen_shares(3, 2, x[i], PP);
         std::vector<std::pair<int64_t, int64_t>> y_i_shares = gen_shares(3, 2, y[i], PP);
@@ -124,7 +219,7 @@ void test_sumproduct() {
                                            product_share3
                                    });
     auto xy = recover_secret(shares, PP);
-    assert(xy == product);
+    assert(mod(xy, PP) == mod(product, PP));
     std::cout << "Inner product works! " << std::endl;
 }
 
@@ -799,12 +894,208 @@ void test_client_deferred(int serverIndex, int logN) {
     std::cout << "Done" << std::endl;
 }
 
+// Generates and stores data for a single client request
+void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint32_t> ledger, std::vector<uint32_t> alphas) {
+    int N = 1 << logN;
+    int amount = rand() % 512 + 1;
+    int senderIndex = 4 * (rand() % ( (N - 1) / 4));
+    int recvIndex = 4 * (rand() % ( (N - 1) / 4));
+
+    std::cout << "Generating a request for sender: " << senderIndex << ", receiver: " << recvIndex << ", amount: " << amount << std::endl;
+
+    uint64_t alpha = alphas[senderIndex];
+
+    auto kmsA = DPF::GenShamir(senderIndex, logN, amount, false);
+    auto kmsA1 = DPF::GenShamir(senderIndex, logN, 1, false);
+    auto kmsB = DPF::GenShamir(recvIndex, logN, amount, true);
+    auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN);
+    auto kmsA1defer = DPF::DeferredGenShamir(senderIndex, logN);
+
+    for (size_t i = 0; i < kmsAdefer.size(); ++i) {
+        auto curr_fn = DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(i) + ".txt";
+        auto curr_fn1 = DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(i) + ".txt";
+
+        writePair(kmsAdefer[i], curr_fn);
+        writePair(kmsA1defer[i], curr_fn1);
+        writeVector(i, kmsA[i], "transfer_kmsA" + std::to_string(reqNumber) + "_");
+        writeVector(i, kmsA1[i], "transfer_kmsAone" + std::to_string(reqNumber) + "_");
+        writeVector(i, kmsB[i], "transfer_kmsB" + std::to_string(reqNumber) + "_");
+    }
+
+    field tag_A = mod(alpha*amount, PP);
+    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = gen_shares(3, 2, tag_A, PP);
+
+    field tag_A1 = mod(alpha, PP);
+    std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
+
+//    field beta = 55; Below are shares of shares of amount and ones
+    std::vector<std::pair<int64_t, int64_t>> amount_shares = gen_shares(3, 2, amount, PP);
+    std::vector<std::pair<int64_t, int64_t>> beta0_shares = gen_shares(3, 2, amount_shares[0].second, PP);
+    std::vector<std::pair<int64_t, int64_t>> beta1_shares = gen_shares(3, 2, mod(amount_shares[1].second*MODINV2, PP), PP);
+    std::vector<std::pair<int64_t, int64_t>> beta2_shares = gen_shares(3, 2, mod(amount_shares[2].second*MODINV3, PP), PP);
+    // NOTE: this should be fine for security as even the adv know these are shares of 1. Can probably even optimize further
+    std::vector<field> one0 = {951264990, 1271295445, 1591325900};
+    std::vector<field> one1 = {957422624, 209868890, 1609798803};
+    std::vector<field> one2 = {1729613830, 1396337361, 1063060892};
+
+    std::vector<field> otherdata, otherdata1, otherdata2, otherdata3;
+
+    for (int i = 0; i < 3; i++) {
+        otherdata.push_back(tag_A_shares[i].second);
+        otherdata.push_back(tag_A1_shares[i].second);
+        otherdata.push_back(beta0_shares[i].second);
+        otherdata.push_back(beta1_shares[i].second);
+        otherdata.push_back(beta2_shares[i].second);
+        otherdata.push_back(one0[i]);
+        otherdata.push_back(one1[i]);
+        otherdata.push_back(one2[i]);
+    }
+
+    otherdata1 = std::vector<field>(otherdata.begin(), otherdata.begin() + 8);
+    otherdata2 = std::vector<field>(otherdata.begin() + 8, otherdata.begin() + 16);
+    otherdata3 = std::vector<field>(otherdata.begin() + 16, otherdata.end());
+
+    saveToFile(otherdata1, DATA_DIR + "transfer_otherdata" + std::to_string(reqNumber) + "_1.txt");
+    saveToFile(otherdata2, DATA_DIR + "transfer_otherdata" + std::to_string(reqNumber) + "_2.txt");
+    saveToFile(otherdata3, DATA_DIR + "transfer_otherdata" + std::to_string(reqNumber) + "_3.txt");
+
+}
+
+struct ClientTransferRequest {
+    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+    std::vector<DPF::KeyShare> kmsA_i;
+    std::vector<DPF::KeyShare> kmsA1_i;
+    std::vector<DPF::KeyShare> kmsB_i;
+    field tag_A_share, tag_A1_share, beta0, beta1, beta2, one0, one1, one2;
+};
+
+ClientTransferRequest load_client_transfer_request(int reqNumber, int idx) {
+    ClientTransferRequest clientTransferRequest;
+
+    clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+    clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+//    clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "kmsAdefer" + std::to_string(idx) + ".txt");
+//    clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "kmsA1defer" + std::to_string(idx) + ".txt");
+
+    clientTransferRequest.kmsA_i = loadVector(idx, "transfer_kmsA" + std::to_string(reqNumber) + "_");
+    clientTransferRequest.kmsA1_i = loadVector(idx, "transfer_kmsAone" + std::to_string(reqNumber) + "_");
+    clientTransferRequest.kmsB_i = loadVector(idx, "transfer_kmsB" + std::to_string(reqNumber) + "_");
+
+    // Load alphas if file exists
+    std::vector<field> otherdata(8);
+    std::ifstream otherdataFile(DATA_DIR + "transfer_otherdata" + std::to_string(reqNumber) + "_" + std::to_string(idx + 1) + ".txt");
+    if (otherdataFile) {
+        for (uint32_t &v : otherdata) {
+            otherdataFile >> v;
+        }
+        otherdataFile.close();
+    }
+
+    clientTransferRequest.tag_A_share = otherdata[0];
+    clientTransferRequest.tag_A1_share = otherdata[1];
+    clientTransferRequest.beta0 = otherdata[2];
+    clientTransferRequest.beta1 = otherdata[3];
+    clientTransferRequest.beta2 = otherdata[4];
+    clientTransferRequest.one0 = otherdata[5];
+    clientTransferRequest.one1 = otherdata[6];
+    clientTransferRequest.one2 = otherdata[7];
+
+    return clientTransferRequest;
+}
+
+namespace fs = std::filesystem;
+
+void deleteFiles(const std::string& prefix, const std::string& directoryPath) {
+    try {
+        for (const auto& entry : fs::directory_iterator(directoryPath)) {
+            if (entry.is_regular_file() && entry.path().filename().string().rfind(prefix, 0) == 0) {
+                fs::remove(entry.path());
+                std::cout << "Deleted: " << entry.path().filename() << std::endl;
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        std::cerr << e.what() << std::endl;
+    }
+}
+
+void generate_client_transfer_requests(int nRequests, int logN, bool refreshServers) {
+    srand(time(0));
+    int N = 1 << logN;
+
+    if (refreshServers) {
+        // Remove previous alphas and ledger files
+        deleteFiles("ledger", DATA_DIR);
+        deleteFiles("alphas", DATA_DIR);
+
+        // Rebuild those files
+        Server server0(0, N, true);
+        Server server1(1, N, true);
+        Server server2(2, N, true);
+    }
+
+    // Load alphas and ledger
+    std::ifstream ledgerFile(DATA_DIR + "ledger.txt");
+    std::ifstream alphasFile(DATA_DIR + "alphas.txt");
+    std::vector<field> ledger(N), alphas(N);
+
+    // Load ledger if file exists
+    if (ledgerFile) {
+        for (uint32_t &value : ledger) {
+            ledgerFile >> value;
+        }
+        ledgerFile.close();
+    }
+    // Load alphas if file exists
+    if (alphasFile) {
+        for (uint32_t &alpha : alphas) {
+            alphasFile >> alpha;
+        }
+        alphasFile.close();
+    }
+
+    // Generate all requests
+    for (int i = 0; i < nRequests; i++) {
+        std::cout << "Generating request: " << i << std::endl;
+        generate_client_transfer_request(logN, i, ledger, alphas);
+    }
+}
+
+// Runs many client transfers
+// Assumes generate_client_transfer_requests() was called with at least nRequests and the same logN
+void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMalicious, bool specificIndex = false) {
+    int N = 1 << logN;
+    Server server(serverIndex, N);
+
+    int idx_start = 0;
+    int idx_end = nRequests;
+    if (specificIndex) {
+        // Only run for 'nRequests' - for debugging a specific DPF
+        idx_start = nRequests;
+        idx_end += 1;
+    }
+
+    for (int i = idx_start; i < idx_end; i++) {
+        ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
+        std::cout << "Running transfer " << i << std::endl;
+        if (!isMalicious) {
+            // Test semi-honest
+            server.transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share, request.tag_A1_share);
+        } else {
+            // Test malicious
+            server.transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i, request.kmsB_i, request.tag_A_share, request.tag_A1_share,
+                                     request.beta0, request.beta1, request.beta2, request.one0,
+                                     request.one1, request.one2);
+        }
+    }
+
+}
+
 void test_client_malicious(int serverIndex, int logN) {
     int N = 1 << logN;
     int amount = 55;
     int senderIndex = 0;
     int recvIndex = 20;
-    uint64_t alpha = 2112445456;
+    uint64_t alpha = 1969685477;
 
     // Load/generate data
     std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
@@ -819,8 +1110,10 @@ void test_client_malicious(int serverIndex, int logN) {
     auto kmsB = DPF::GenShamir(recvIndex, logN, amount, true);
     auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN);
     auto kmsA1defer = DPF::DeferredGenShamir(senderIndex, logN);
-    auto fn = DATA_DIR + "kmsAdefer" + std::to_string(serverIndex) + ".txt";
-    auto fn1 = DATA_DIR + "kmsA1defer" + std::to_string(serverIndex) + ".txt";
+//    auto fn = DATA_DIR + "kmsAdefer" + std::to_string(serverIndex) + ".txt";
+//    auto fn1 = DATA_DIR + "kmsA1defer" + std::to_string(serverIndex) + ".txt";
+    auto fn = DATA_DIR + "transfer_kmsAdefer" + std::to_string(193) + "_" + std::to_string(serverIndex) + ".txt";
+    auto fn1 = DATA_DIR + "transfer_kmsA1defer" + std::to_string(193) + "_" + std::to_string(serverIndex) + ".txt";
 
     if (fileExists(fn)) {
         kmsAdefer_i = loadPair(fn);
@@ -847,21 +1140,20 @@ void test_client_malicious(int serverIndex, int logN) {
         kmsB_i = kmsB[serverIndex];
     }
 
-    // TODO: This shouldn't work without making sure its deterministic, no? Look into this..
 //    field tag_A = (alpha*amount) % PP;
 //    std::vector<std::pair<int64_t, int64_t>> tag_A_shares = gen_shares(3, 2, tag_A, PP);
     std::vector<std::pair<int64_t, int64_t>> tag_A_shares = {
-            {1, 313768438},
-            {2, 407153734},
-            {3, 500539030}
+            {1, 1235626339},
+            {2, 1512733793},
+            {3, 1789841247}
     };
     field tag_A_share = tag_A_shares[serverIndex].second;
 //    field tag_A1 = (alpha) % PP;
 //    std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
     std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = {
-            {1, 1710921975},
-            {2, 1309398494},
-            {3, 907875013}
+            {1, 988340624},
+            {2, 6995771},
+            {3, 1173134565}
     };
     field tag_A1_share = tag_A1_shares[serverIndex].second;
 
@@ -898,14 +1190,17 @@ void test_client_malicious(int serverIndex, int logN) {
 }
 
 // Helper function - mostly temp, to help debug what happens in the deferred stuf
-void deconstruct_deferreddpf() {
+void deconstruct_deferreddpf(int logN, int serverIndex) {
+    int N = 1 << logN;
+
     std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> kmsA1defer;
     std::vector<std::vector<std::pair<uint8_t , uint8_t>>> key0_s0_shares, key1_s0_shares, key0_s1_shares, key1_s1_shares;
     std::vector<std::pair<uint8_t, uint8_t>> key0_t0_shares, key1_t0_shares;
 
     for (int i = 0; i < 3; i++) {
 //        auto fn1 = DATA_DIR + "kmsA1defer" + std::to_string(i) + ".txt";
-        auto fn1 = DATA_DIR + "kmsAdefer" + std::to_string(i) + ".txt";
+//        auto fn1 = DATA_DIR + "kmsAdefer" + std::to_string(i) + ".txt";
+        auto fn1 = DATA_DIR + "transfer_kmsAdefer" + std::to_string(56) + "_" + std::to_string(i) + ".txt";
         auto kmsA1defer_i = loadPair(fn1);
         kmsA1defer.push_back(kmsA1defer_i);
         key0_s0_shares.push_back(kmsA1defer_i.first.s0_share);
@@ -937,6 +1232,20 @@ void deconstruct_deferreddpf() {
     auto key1_t0 = reconstruct_gf256(key1_t0_shares);
     std::cout << "key0, t0: " << int(key0_t0) << std::endl;
     std::cout << "key1, t0: " << int(key1_t0) << std::endl;
+
+    if (serverIndex == -1) {
+        return;
+    }
+
+    // Mock up servers and test the DPF
+    Server server(serverIndex, N);
+    //    field beta = 55; Below are shares of shares of beta
+    std::vector<field> beta0 = {847777152, 1485437038, 2123096924};
+    std::vector<field> beta1 = {1261625909, 1239392756, 1217159603};
+    std::vector<field> beta2 = {1923965764, 58674887, 340867657};
+
+    server.evalDeferredTest(kmsA1defer[serverIndex], beta0[serverIndex], beta1[serverIndex], beta2[serverIndex]);
+
 }
 
 void test_server(int serverIndex, int logN) {
@@ -1185,22 +1494,27 @@ int main(int argc, char** argv) {
     size_t N = std::strtoull(argv[2], nullptr, 10);
 //    int x = run_playground_tests(N); // misc tests
 //    reconstruct_fake_xor_rand();
-//    deconstruct_deferreddpf();
 //    test_shares_mult_gf256();
 //    mock_fproduct_test(N);
     int serverIndex = std::atoi(argv[1]);
+//    deconstruct_deferreddpf(N, serverIndex);
 
 
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
 //    test_sumproduct();
+//    test_sumproduct_adhoc(N);
 
 //    test_server(serverIndex, N);
 //    test_client_deferred(serverIndex, N);
 //    test_client(serverIndex, N);
 
 
-    test_client_malicious(serverIndex, N);
+//    test_client_malicious(serverIndex, N);
 
+//    generate_client_transfer_requests(300, N, false);
+//    test_client_transfers(100, serverIndex, N, false);
+    test_client_transfers(300, serverIndex, N, true);
+//    test_client_transfers(56, serverIndex, N, true, true);
     return 0;
 }

@@ -82,8 +82,9 @@ namespace PIRW {
         for (size_t i = 0; i < a.size(); i++)
         {
 //            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
-            uint64_t tmp = mod((static_cast<int64_t>(a[i]) * b[i]), PP);
-            inner_product += tmp;
+            uint64_t tmp = mod((static_cast<uint64_t>(a[i]) * b[i]), PP);
+            inner_product = mod(inner_product + tmp, PP); // TODO: maybe don't need this mod and can optimize here?
+//            inner_product += tmp;
 //            inner_product = (inner_product + tmp) % PP;
         }
 

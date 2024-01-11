@@ -189,7 +189,6 @@ private:
 
 
     void initData(size_t N);
-    void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
 
     std::vector<int64_t> reconstruct_helper(const std::vector<field>& shares0, const std::vector<field>& shares1, const std::vector<field>& shares2);
     std::vector<uint8_t> reconstruct_helper_gf256(const std::vector<uint8_t>& shares0, const std::vector<uint8_t>& shares1, const std::vector<uint8_t>& shares2);
