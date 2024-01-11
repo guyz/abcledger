@@ -196,7 +196,7 @@ int run_playground_tests(int N) {
     std::cout << "DPF.EvalFull8M "     << evalT3.count() << "sec" << std::endl;
 
     // test correctness
-    if (false){
+    if (true){
         return 0;
     }
 
@@ -975,6 +975,10 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMalicious, bool specificIndex = false) {
     int N = 1 << logN;
     Server server(serverIndex, N);
+    std::chrono::duration<double> evalT1;
+    evalT1 = std::chrono::duration<double>::zero();
+
+    // Benchmark a single execution of Gen
 
     int idx_start = 0;
     int idx_end = nRequests;
@@ -986,17 +990,25 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
 
     for (int i = idx_start; i < idx_end; i++) {
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
-        std::cout << "Running transfer " << i << std::endl;
+//        std::cout << "Running transfer " << i << std::endl;
         if (!isMalicious) {
             // Test semi-honest
+            auto time1 = std::chrono::high_resolution_clock::now();
             server.transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share, request.tag_A1_share);
+            auto time2 = std::chrono::high_resolution_clock::now();
+            evalT1 += time2 - time1;
         } else {
             // Test malicious
+            auto time1 = std::chrono::high_resolution_clock::now();
             server.transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i, request.kmsB_i, request.tag_A_share, request.tag_A1_share,
                                      request.beta0, request.beta1, request.beta2, request.one0,
                                      request.one1, request.one2);
+            auto time2 = std::chrono::high_resolution_clock::now();
+            evalT1 += time2 - time1;
         }
     }
+
+    std::cout << "Client transfers (malicious=" << isMalicious << ") took overall: " << evalT1.count() << "sec. Each iteration took: " << evalT1.count()/(idx_end-idx_start) << " secs. " << std::endl;
 
 }
 
@@ -1421,9 +1433,10 @@ int main(int argc, char** argv) {
 
 //    test_client_malicious(serverIndex, N);
 
-//    generate_client_transfer_requests(300, N, false);
+//    generate_client_transfer_requests(100, N, true);
 //    test_client_transfers(100, serverIndex, N, false);
-    test_client_transfers(300, serverIndex, N, true);
+    test_client_transfers(100, serverIndex, N, true);
+
 //    test_client_transfers(56, serverIndex, N, true, true);
     return 0;
 }

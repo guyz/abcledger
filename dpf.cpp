@@ -616,17 +616,15 @@ namespace DPF {
         EvalFullRecursive8(key, sR, tR, lvl+1, stop, res);
     }
 
-    std::pair<std::vector<uint32_t>, std::vector<block>> EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable) {
+//    std::pair<std::vector<uint32_t>, std::vector<block>>
+    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, std::vector<block>& data_nodes) {
         assert(logn <= 63);
-        std::vector<uint8_t> data, data_nodes;
-        data.resize( 4*(1ULL << logn) );
-        data_nodes.resize( 4*(1ULL << logn) );
-        std::array<uint8_t*,8> data_ptrs;
-        std::array<uint8_t*,8> data_ptrs_nodes;
+        std::array<uint32_t*,8> data_ptrs;
+        std::array<block*,8> data_ptrs_nodes;
         for(size_t i = 0; i < 8; i++) {
 //            data_ptrs[i] = &data[i*(1ULL << (logn - 3 - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
-            data_ptrs[i] = &data[4*i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
-            data_ptrs_nodes[i] = &data_nodes[4*i*(1ULL << (logn - 3))];
+            data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
+            data_ptrs_nodes[i] = &data_nodes[(i*(1ULL << (logn - 3)))/4];
         }
         block s;
         memcpy(&s, key.data(), 16);
@@ -756,35 +754,40 @@ namespace DPF {
 
         EvalFullRecursive8M(key, s_array, t_array, 3, stop, data_ptrs, data_ptrs_nodes, nullptr, party_index, verifiable);
 
-        const uint32_t* begin = reinterpret_cast<const uint32_t*>(data.data());
-        const uint32_t* end = reinterpret_cast<const uint32_t*>(data.data() + data.size());
-
-        const block* begin_nodes = reinterpret_cast<const block*>(data_nodes.data());
-        const block* end_nodes = reinterpret_cast<const block*>(data_nodes.data() + data_nodes.size());
-
-        auto v1 = std::vector<uint32_t>(begin, end);
-        auto v2 = std::vector<block>(begin_nodes, end_nodes);
-        return std::make_pair(
-                v1, v2
-        );
+//        const uint32_t* begin = reinterpret_cast<const uint32_t*>(data.data());
+//        const uint32_t* end = reinterpret_cast<const uint32_t*>(data.data() + data.size());
+//
+//        const block* begin_nodes = reinterpret_cast<const block*>(data_nodes.data());
+//        const block* end_nodes = reinterpret_cast<const block*>(data_nodes.data() + data_nodes.size());
+//
+//        auto v1 = std::vector<uint32_t>(begin, end);
+//        auto v2 = std::vector<block>(begin_nodes, end_nodes);
+//        return std::make_pair(
+//                v1, v2
+//        );
     }
 
     std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
-        auto res = EvalFull8M_helper(key, logn, party_index, false);
-        return res.first;
+        std::vector<uint32_t> data( (1ULL << logn) );
+        std::vector<block> data_nodes( (1ULL << logn)/4 );
+        EvalFull8M_helper(key, logn, party_index, false, data, data_nodes);
+        return data;
     }
 
     std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index) {
-        auto res = EvalFull8M_helper(key.key, logn, party_index, true);
-        auto vm = res.first;
-        auto nodes = res.second;
+//        auto res = EvalFull8M_helper(key.key, logn, party_index, true);
+        std::vector<uint32_t> vm( (1ULL << logn) );
+        std::vector<block> nodes( (1ULL << logn)/4 );
+        EvalFull8M_helper(key.key, logn, party_index, true, vm, nodes);
+//        auto vm = res.first;
+//        auto nodes = res.second;
         std::array<block, 4> pi = key.cs;
         block s;
         bool t;
 
         // Hash it all! For integrity
         for (int i = 0; i < vm.size(); i += 4) {
-            s = nodes[i/4];
+//            s = nodes[i/4]; // TODO: reenable this
             t = (s & 0x01)[1]; // Note: this isn't the t used to actually determine OCW usage. This might be a problem..
 //                t = getT(s);
             uint32_t i_offset = i - (i % 4);
@@ -805,15 +808,15 @@ namespace DPF {
             pi[2] = _mm_xor_si128(pi[2], h2_output[0]);
             pi[3] = _mm_xor_si128(pi[3], h2_output[1]);
         }
-
+        // TODO: maybe want to optimize this if verdpf is much slower?
         return std::make_pair(
-                res.first,
+                vm,
                 pi
         );
     }
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint8_t*,8>& res, std::array<uint8_t*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
+    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
         if(lvl == stop) {
             std::array<reg_arr_union,8> tmp;
             reg_arr_union CW;
@@ -827,15 +830,15 @@ namespace DPF {
 //                }
                 block tt = _mm_set1_epi8(-(t_i));
                 tmp[i].reg = conv[i] ^ (CW.reg & tt);
-                memcpy(res[i], tmp[i].arr, 16); // This copies 128 bits --> 128 elements condensed.. since this is 1 bit
-                res[i] += sizeof(block);
+                memcpy(res[i], tmp[i].arr32, 16); // This copies 128 bits --> 128 elements condensed.. since this is 1 bit
+                res[i] += sizeof(block)/4;
 
                 if (verifiable) {
                     reg_arr_union tmp2;
                     tmp2.reg = conv[i];
 //                    tmp2.reg = conv[i] ^ (CW.reg & tt);
                     memcpy(res_nodes[i], tmp2.arr, 16);
-                    res_nodes[i] += sizeof(block);
+                    res_nodes[i] += 1;
                 }
             }
             return;

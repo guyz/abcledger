@@ -22,6 +22,7 @@
 #include <variant>
 #include <vector>
 #include <cstring>
+#include "DebugPrint.h"
 
 // TODO: Things to implement:
 // Frand, Fzero, Fltz, PRZS, PRSS
@@ -419,8 +420,8 @@ std::pair<std::tuple<Args...>, std::tuple<Args...>> Server::run_round(const std:
     send(connectionHandler2, dataToSend.c_str(), dataToSend.size(), 0);
 
     // Logging sent data - optional
-    // std::apply([](const auto&... args) { ((std::cout << args << ", "), ...); }, inputs);
-    std::cout << "Server" << server_index << " has sent data." << std::endl;
+    // std::apply([](const auto&... args) { ((debugPrint << args << ", "), ...); }, inputs);
+    debugPrint << "Server" << server_index << " has sent data." << std::endl;
 
     // Receive data from server 1
     char buffer1[1024] = {0};
@@ -465,9 +466,9 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 
-    std::cout << "A[0]: " << data_A[0] << std::endl;
-//    std::cout << "pi_B: " << pi_B[0][0] << std::endl;
-    std::cout << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
+    debugPrint << "A[0]: " << data_A[0] << std::endl;
+//    debugPrint << "pi_B: " << pi_B[0][0] << std::endl;
+    debugPrint << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
 
     field amount_A = PIRW::sumvecff31(data_A);
     field amount_B = PIRW::sumvecff31(data_B);
@@ -484,7 +485,7 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     tag_share_A1_prime = outputs[1];
     balance_A = outputs[2];
 
-    std::cout << "Finished Fproduct gates" << std::endl;
+    debugPrint << "Finished Fproduct gates" << std::endl;
 
     field tag_delta_A_share = mod(static_cast<int64_t>(tag_A_share) - tag_share_A_prime, PP);
     field tag_delta_A1_share = mod(static_cast<int64_t>(tag_A1_share) - tag_share_A1_prime, PP);
@@ -516,7 +517,7 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     // Process the received data
     auto [zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, amount_Br1, pi0_B1, pi1_B1] = output1;
     auto [zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, amount_Br2, pi0_B2, pi1_B2] = output2;
-    std::cout << "Finished CheckZero Round 2" << std::endl;
+    debugPrint << "Finished CheckZero Round 2" << std::endl;
 
     // Run Access Control checks
     // TODO: check Pis..
@@ -538,7 +539,7 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
     ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
 
-    std::cout << "Transfer (semi-honest) succeeded!" << std::endl;
+    debugPrint << "Transfer (semi-honest) succeeded!" << std::endl;
 
 }
 
@@ -685,11 +686,11 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
     auto v0_share = fake_xor_rand(server_index); // TODO: really Frand(xor) - still need to fix this..
     auto v2_share = xor_shares_vector(beta0, v0_share);
 
-//    std::cout << "beta0: ";
+//    debugPrint << "beta0: ";
 //    printVector(extract_values_gf256(beta0));
-//    std::cout << "beta1: ";
+//    debugPrint << "beta1: ";
 //    printVector(extract_values_gf256(beta1));
-//    std::cout << "beta2: ";
+//    debugPrint << "beta2: ";
 //    printVector(extract_values_gf256(beta2));
 
     auto beta01 = xor_shares_vector(beta0, beta1);
@@ -700,7 +701,7 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
 //
 //    auto vm2tmp = DPF::EvalFull8M(key.second.key, log2N, 0);
 //    for (int i = 0; i<10; i++) {
-//        std::cout << "ZeroDPF (1 - second) at " << i << ": " << vm2tmp[i] << std::endl;
+//        debugPrint << "ZeroDPF (1 - second) at " << i << ": " << vm2tmp[i] << std::endl;
 //    }
 //
 //    uint8_t t0_0tmp = key.first.t0_share.second;
@@ -786,41 +787,41 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
 //    share2tmp = std::get<10>(output2tmp);
 //    auto s1_1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s1_share), share1tmp, share2tmp);
 //
-//    std::cout << "t0 (0) reconstructed: " << static_cast<int>(t0tmp) << ", t0 (1): " << static_cast<int>(t1tmp) << std::endl;
+//    debugPrint << "t0 (0) reconstructed: " << static_cast<int>(t0tmp) << ", t0 (1): " << static_cast<int>(t1tmp) << std::endl;
 //
-//    std::cout << "beta0 reconstructed: ";
+//    debugPrint << "beta0 reconstructed: ";
 //    printVector(beta0tmp);
-//    std::cout << "beta1 reconstructed: ";
+//    debugPrint << "beta1 reconstructed: ";
 //    printVector(beta1tmp);
-//    std::cout << "beta2 reconstructed: ";
+//    debugPrint << "beta2 reconstructed: ";
 //    printVector(beta2tmp);
-//    std::cout << "beta0 XOR beta1 reconstructed: ";
+//    debugPrint << "beta0 XOR beta1 reconstructed: ";
 //    printVector(beta01tmp);
-//    std::cout << "beta1 XOR beta2 reconstructed: ";
+//    debugPrint << "beta1 XOR beta2 reconstructed: ";
 //    printVector(beta12tmp);
-//    std::cout << "s0 (0) reconstructed: ";
+//    debugPrint << "s0 (0) reconstructed: ";
 //    printVector(s0tmp);
-//    std::cout << "s0 (1) reconstructed: ";
+//    debugPrint << "s0 (1) reconstructed: ";
 //    printVector(s1tmp);
-//    std::cout << "s1 (0) reconstructed: ";
+//    debugPrint << "s1 (0) reconstructed: ";
 //    printVector(s1_0tmp);
-//    std::cout << "s1 (1) reconstructed: ";
+//    debugPrint << "s1 (1) reconstructed: ";
 //    printVector(s1_1tmp);
     // END REMOVE TEMP
 
 
-//    std::cout << "beta01: ";
+//    debugPrint << "beta01: ";
 //    printVector(extract_values_gf256(beta01));
-//    std::cout << "beta12: ";
+//    debugPrint << "beta12: ";
 //    printVector(extract_values_gf256(beta12));
 
     auto s01 = xor_shares_vector(key.first.s0_share, key.first.s1_share);
-//    std::cout << "s0 xor s1 for DPF0: ";
+//    debugPrint << "s0 xor s1 for DPF0: ";
 //    printVector(extract_values_gf256(s01));
     auto ocw0_share = xor_shares_vector(s01, beta01);
     s01 = xor_shares_vector(key.second.s0_share, key.second.s1_share);
     auto ocw1_share = xor_shares_vector(s01, beta12);
-//    std::cout << "s0 xor s1 for DPF1: ";
+//    debugPrint << "s0 xor s1 for DPF1: ";
 //    printVector(extract_values_gf256(beta2));
 
     std::vector<uint8_t> ocw0_serialized_share = extract_values_gf256(ocw0_share);
@@ -842,17 +843,17 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
     auto ocw1 = reconstruct_helper_gf256(ocw1_serialized_share, share1, share2);
 
 //     Debug info
-//    std::cout << "ocw0: ";
+//    debugPrint << "ocw0: ";
 //    for (int i = 0; i < ocw0.size(); i++) {
-//        std::cout << static_cast<int>(ocw0[i]) << ", ";
+//        debugPrint << static_cast<int>(ocw0[i]) << ", ";
 //    }
-//    std::cout << std::endl;
+//    debugPrint << std::endl;
 //
-//    std::cout << "ocw1: ";
+//    debugPrint << "ocw1: ";
 //    for (int i = 0; i < ocw1.size(); i++) {
-//        std::cout << static_cast<int>(ocw1[i]) << ", ";
+//        debugPrint << static_cast<int>(ocw1[i]) << ", ";
 //    }
-//    std::cout << std::endl;
+//    debugPrint << std::endl;
 
     uint8_t t0_0 = key.first.t0_share.second;
     uint8_t t0_1 = key.second.t0_share.second;
@@ -891,53 +892,53 @@ std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, 
     std::copy(ocw0.begin(), ocw0.end(), key0.key.end() - 16); // replace the output CW
     // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
     key0.z = convertToUint32(z0);
-    std::cout << "z0 is : " << key0.z << std::endl;
+    debugPrint << "z0 is : " << key0.z << std::endl;
 
     key1.key = key.second.key;
     std::copy(ocw1.begin(), ocw1.end(), key1.key.end() - 16); // replace the output CW
     // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
     key1.z = convertToUint32(z1);
-    std::cout << "z1 is : " << key1.z << std::endl;
+    debugPrint << "z1 is : " << key1.z << std::endl;
     return {key0, key1};
 }
 
 // This is an implementation of TDDPF.BEval - including verbose printouts to test correctness. It's in Server as it's a protocol.
 // However, the goal isn't to call this ad-hoc. This is just for tests and benchmarking.
 void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
-    std::cout << "Starting with OCW: ";
+    debugPrint << "Starting with OCW: ";
     for (int i = 0; i < 16; i++) {
-        std::cout << static_cast<int>(key.first.key[key.first.key.size() - 16 + i]) << ", ";
+        debugPrint << static_cast<int>(key.first.key[key.first.key.size() - 16 + i]) << ", ";
     }
-    std::cout << "and key size=: " << key.first.key.size() << std::endl;;
+    debugPrint << "and key size=: " << key.first.key.size() << std::endl;;
 
-    std::cout << "Starting with OCW1: ";
+    debugPrint << "Starting with OCW1: ";
     for (int i = 0; i < 16; i++) {
-        std::cout << static_cast<int>(key.second.key[key.second.key.size() - 16 + i]) << ", ";
+        debugPrint << static_cast<int>(key.second.key[key.second.key.size() - 16 + i]) << ", ";
     }
-    std::cout << "and key size=: " << key.second.key.size() << std::endl;;
+    debugPrint << "and key size=: " << key.second.key.size() << std::endl;;
 
     auto fullkey = fixCodeword(key, beta_0, beta_1, beta_2);
 
 
-    std::cout << "New OCW: ";
+    debugPrint << "New OCW: ";
     for (int i = 0; i < 16; i++) {
-        std::cout << static_cast<int>(fullkey[0].key[fullkey[0].key.size() - 16 + i]) << ", ";
+        debugPrint << static_cast<int>(fullkey[0].key[fullkey[0].key.size() - 16 + i]) << ", ";
     }
-    std::cout << "and key size=: " << fullkey[0].key.size() << std::endl;
+    debugPrint << "and key size=: " << fullkey[0].key.size() << std::endl;
 
-    std::cout << "New OCW1: ";
+    debugPrint << "New OCW1: ";
     for (int i = 0; i < 16; i++) {
-        std::cout << static_cast<int>(fullkey[1].key[fullkey[1].key.size() - 16 + i]) << ", ";
+        debugPrint << static_cast<int>(fullkey[1].key[fullkey[1].key.size() - 16 + i]) << ", ";
     }
-    std::cout << std::endl;
+    debugPrint << std::endl;
 
     auto vms = DPF::EvalShamir(fullkey, log2N, server_index).first;
 
     for (int i = 0; i<50; i++) {
-        std::cout << "Value at " << i << ": " << vms[i] << std::endl;
+        debugPrint << "Value at " << i << ": " << vms[i] << std::endl;
     }
 
-    std::cout << "Sanity checks below.." << std::endl;
+    debugPrint << "Sanity checks below.." << std::endl;
 
     bool idx = 0;
 
@@ -950,12 +951,12 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     if (server_index == 2) {
         idx = 1;
     }
-    std::cout << "Server index: " << server_index << ", idx: " << idx << std::endl;
+    debugPrint << "Server index: " << server_index << ", idx: " << idx << std::endl;
 
     auto vm2 = DPF::EvalFull8M(key.second.key, log2N, idx);
     for (int i = 0; i<50; i++) {
-        std::cout << "DPF0 Value at " << i << ": " << vm1[i] << std::endl;
-        std::cout << "DPF1 Value at " << i << ": " << vm2[i] << std::endl;
+        debugPrint << "DPF0 Value at " << i << ": " << vm1[i] << std::endl;
+        debugPrint << "DPF1 Value at " << i << ": " << vm2[i] << std::endl;
     }
 
 
@@ -972,8 +973,8 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     }
     auto vm12 = DPF::EvalFull8M(fullkey[1].key, log2N, idx);
     for (int i = 0; i<50; i++) {
-        std::cout << "DPF1 0 Value at " << i << ": " << vm11[i] << std::endl;
-        std::cout << "DPF1 1 Value at " << i << ": " << vm12[i] << std::endl;
+        debugPrint << "DPF1 0 Value at " << i << ": " << vm11[i] << std::endl;
+        debugPrint << "DPF1 1 Value at " << i << ": " << vm12[i] << std::endl;
     }
 
 
@@ -1005,8 +1006,8 @@ std::vector<field> Server::multfproduct_open(std::vector<field> inputs) {
         auto rr = PRSS2();
         randt_shares.push_back(rr.first);
         rand_inputs.push_back(mod(static_cast<int64_t>(inputs[i]) + rr.second, PP));
-//        std::cout << "FmultOpen: inputs[" << i << "]: " << inputs[i] << std::endl;
-//        std::cout << "FmultOpen: rand_inputs[" << i << "]: " << rand_inputs[i] << std::endl;
+//        debugPrint << "FmultOpen: inputs[" << i << "]: " << inputs[i] << std::endl;
+//        debugPrint << "FmultOpen: rand_inputs[" << i << "]: " << rand_inputs[i] << std::endl;
     }
 
 
@@ -1022,10 +1023,10 @@ std::vector<field> Server::multfproduct_open(std::vector<field> inputs) {
     auto rand_outputs = reconstruct_helper(rand_inputs, rand_outputs1, rand_outputs2);
     for (int i = 0; i < rand_outputs.size(); i++) {
         int64_t ro = mod(rand_outputs[i], PP);
-//        std::cout << "FmultOpen: rand_outputs[" << i << "]: " << ro << std::endl;
+//        debugPrint << "FmultOpen: rand_outputs[" << i << "]: " << ro << std::endl;
         auto res_i = mod(ro - randt_shares[i], PP);
         outputs.push_back(res_i);
-//        std::cout << "FmultOpen: outputs[" << i << "]: " << res_i << std::endl;
+//        debugPrint << "FmultOpen: outputs[" << i << "]: " << res_i << std::endl;
     }
 
     return outputs;
@@ -1086,9 +1087,9 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 
-    std::cout << "A[0]: " << data_A[0] << std::endl;
-//    std::cout << "pi_B: " << pi_B[0][0] << std::endl;
-    std::cout << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
+    debugPrint << "A[0]: " << data_A[0] << std::endl;
+//    debugPrint << "pi_B: " << pi_B[0][0] << std::endl;
+    debugPrint << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
 
     field amount_A = PIRW::sumvecff31(data_A);
     field amount_B = PIRW::sumvecff31(data_B);
@@ -1121,7 +1122,9 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     field amount_B_MAC = outputs[7];
     field tag_A_share_MAC = outputs[8];
     field tag_A1_share_MAC = outputs[9];
-    std::cout << "Finished randomizing inputs round" << std::endl;
+//#ifndef DEBUG
+    debugPrint << "Finished randomizing inputs round" << std::endl;
+//#endif
 
     // Randomize DPF inputs (fix codewords)
     auto data_A_MAC = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first;
@@ -1148,7 +1151,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     tag_share_A1_prime_MAC = outputs[4];
     balance_A_MAC = outputs[5];
 
-    std::cout << "Finished Fproduct gates" << std::endl;
+    debugPrint << "Finished Fproduct gates" << std::endl;
 
     // FCheckZero Gate
 
@@ -1167,7 +1170,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     outputs = multgate_helper({tag_delta_A_share, tag_delta_A1_share, amount_delta, tag_delta_A_share_MAC, tag_delta_A1_share_MAC, amount_delta_MAC}, {r1, r2, r3, r1, r2, r3});
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
     batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 3, outputs.end());
-    std::cout << "Finished CheckZero Round 1" << std::endl;
+    debugPrint << "Finished CheckZero Round 1" << std::endl;
 
     // Round 2 - Open and check bit in the clear. Also batch FLTZ gates and check Pi_B
     // TODO: I'm not dealing with authenticating FLTZ. Need to fix once landed on an implementation.
@@ -1192,7 +1195,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     // Process the received data
     auto [zero_check_a_1, zero_check_b_1, zero_check_c_1, amount_A1, amount_Amax1, new_balance_A1, r_share1, pi0_B1, pi1_B1] = output1;
     auto [zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, r_share2, pi0_B2, pi1_B2] = output2;
-    std::cout << "Finished CheckZero Round 2" << std::endl;
+    debugPrint << "Finished CheckZero Round 2" << std::endl;
 
     // Run Access Control checks
     // TODO: check Pis..
@@ -1227,7 +1230,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     // CheckZero on t
     r1 = PRSS();
     outputs = multgate_helper({t}, {r1});
-    std::cout << "Finished BatchVerify (CheckZero) Round 1" << std::endl;
+    debugPrint << "Finished BatchVerify (CheckZero) Round 1" << std::endl;
 
     // Open
     auto inp_check = std::make_tuple(
@@ -1241,7 +1244,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     auto [check_share1] = out_check1;
     auto [check_share2] = out_check2;
     auto t_reconstructed = reconstruct_helper(outputs, check_share1, check_share2)[0];
-    std::cout << "Finished BatchVerify (CheckZero) Round 2 and t = " << t_reconstructed << std::endl;
+    debugPrint << "Finished BatchVerify (CheckZero) Round 2 and t = " << t_reconstructed << std::endl;
 
 //    // TODO: remove temp
 //    // Open
@@ -1261,7 +1264,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //
 //    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
 //        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
-//        std::cout << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
+//        debugPrint << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
 //    }
 //    // TODO: end remove temp
 
@@ -1271,9 +1274,9 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
         // Finalize the transaction after the MPC round / all checks have passed
         ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
         ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
-        std::cout << "Transfer succeeded!" << std::endl;
+        debugPrint << "Transfer succeeded!" << std::endl;
     } else {
-        std::cout << "Transfer failed! t_reconstructed not okay" << std::endl;
+        debugPrint << "Transfer failed! t_reconstructed not okay" << std::endl;
     }
 
 }
