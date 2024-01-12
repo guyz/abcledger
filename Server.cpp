@@ -1136,18 +1136,67 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     debugPrint << "Finished randomizing inputs round" << std::endl;
 //#endif
 
-    // Randomize DPF inputs (fix codewords)
+
+
+//    // Randomize DPF inputs (fix codewords)
+
+// running these async takes ages for some reason - probably related to being a class function or something? idk
     auto data_A_MAC = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first;
     auto data_A1_MAC = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
 
-    // FProduct gates
-    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
-    field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
-    field balance_A = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+//    auto future_data_A_MAC = std::async(std::launch::async, [&] {
+//        return std::move(this->evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first);
+//    });
+//    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
+//        return std::move(this->evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first);
+//    });
+    //    // Get the results from previous tasks
+//    auto data_A_MAC = future_data_A_MAC.get();
+//    auto data_A1_MAC = future_data_A1_MAC.get();
 
-    field tag_share_A_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
-    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
-    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
+    // FProduct gates
+//    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
+//    field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+//    field balance_A = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+//
+//    field tag_share_A_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
+//    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
+//    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
+
+
+//    // Start asynchronous tasks for the rest of the computations
+    auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
+    });
+    auto future_tag_share_A1_prime = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+    });
+    auto future_balance_A = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+    });
+    // ... [other asynchronous tasks] ...
+    field tag_share_A_prime = future_tag_share_A_prime.get();
+    field tag_share_A1_prime = future_tag_share_A1_prime.get();
+    field balance_A = future_balance_A.get();
+
+
+    // Start asynchronous tasks for the MAC computations
+    auto future_tag_share_A_prime_MAC = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
+    });
+    auto future_tag_share_A1_prime_MAC = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
+    });
+    auto future_balance_A_MAC = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
+    });
+
+    // Get the results of the MAC computations
+    field tag_share_A_prime_MAC = future_tag_share_A_prime_MAC.get();
+    field tag_share_A1_prime_MAC = future_tag_share_A1_prime_MAC.get();
+    field balance_A_MAC = future_balance_A_MAC.get();
+
+
 
     outputs = multfproduct_open({ tag_share_A_prime, tag_share_A1_prime, balance_A, tag_share_A_prime_MAC, tag_share_A1_prime_MAC, balance_A_MAC });
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
