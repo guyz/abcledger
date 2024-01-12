@@ -35,8 +35,8 @@ set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS}")
 # Select flags.
 SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O2 -g -ggdb -rdynamic")
-#SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
-SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
+SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
+#SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
 
 #add_compile_definitions(ENABLE_DEBUG)
 

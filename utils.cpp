@@ -72,13 +72,13 @@ uint32_t modmersenne31safe64(uint64_t x) {
 
 // Returns the 'positive mod' - i.e., what we need to operate over a field.
 // Only relevant when computing minus or sub..
-int64_t mod(int64_t a, int64_t b) {
-    int64_t result = a % b;
-    if (result < 0) {
-        result += b;
-    }
-    return result;
-}
+//int64_t mod(int64_t a, int64_t b) {
+//    int64_t result = a % b;
+//    if (result < 0) {
+//        result += b;
+//    }
+//    return result;
+//}
 
 
 block modmersenne31block(block x) {

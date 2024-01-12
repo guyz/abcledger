@@ -17,6 +17,7 @@
 #include <ctime>
 #include <filesystem>
 #include <cassert>
+#include <future>
 
 #include <sstream>
 #include <variant>
@@ -459,10 +460,10 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
     auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
 
-    auto data_A = res_A.first;
-    auto data_A1 = res_A1.first;
-    auto data_B = res_B.first;
-    auto pi_B = res_B.second;
+    auto data_A = std::move(res_A.first);
+    auto data_A1 = std::move(res_A1.first);
+    auto data_B = std::move(res_B.first);
+    auto pi_B = std::move(res_B.second);
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 
@@ -1076,14 +1077,23 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     field r = PRSS();
     // Expand DPFs
     // TODO: could/should be parallelized?
-    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
-    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
-    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
+//    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
+//    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
+//    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
 
-    auto data_A = res_A.first;
-    auto data_A1 = res_A1.first;
-    auto data_B = res_B.first;
-    auto pi_B = res_B.second;
+    auto future_res_A = std::async(std::launch::async, DPF::EvalShamir, key_A, log2N, server_index, false);
+    auto future_res_A1 = std::async(std::launch::async, DPF::EvalShamir, key_A1, log2N, server_index, false);
+    auto future_res_B = std::async(std::launch::async, DPF::EvalShamir, key_B, log2N, server_index, true);
+
+    // Getting the results (this will wait for the thread to finish if it hasn't yet)
+    auto res_A = future_res_A.get();
+    auto res_A1 = future_res_A1.get();
+    auto res_B = future_res_B.get();
+
+    auto data_A = std::move(res_A.first);
+    auto data_A1 = std::move(res_A1.first);
+    auto data_B = std::move(res_B.first);
+    auto pi_B = std::move(res_B.second);
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 

@@ -54,5 +54,4 @@ namespace DPF {
 
     std::pair<KeyShare, KeyShare> VerGenM(size_t alpha, size_t logn, uint32_t msg);
     std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index);
-
 }

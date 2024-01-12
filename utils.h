@@ -15,7 +15,7 @@
 
 #include <sstream>
 
-const std::string DATA_DIR = "/home/azureuser/data/";
+const std::string DATA_DIR = "/home/azureuser/work/data/";
 const int OTHER_PRIME = 4294967111;
 const int PP = 2147483647;
 const uint64_t MODINV2 = 1073741824;
@@ -65,7 +65,10 @@ bool are_vectors_equal_2(const std::vector<block>& arr1, const std::vector<block
 // mod 2^31 - 1
 uint32_t modmersenne31(uint32_t x);
 uint32_t modmersenne31safe64(uint64_t x); // hackish to prevent overflow when multiplying two 32-bit numbers
-int64_t mod(int64_t a, int64_t b);
+inline int64_t mod(const int64_t a, const int64_t b) {
+    int64_t result = a % b;
+    return (result < 0) ? result + b : result;
+}
 
 // vectorized (4 ints) mod 2^31 - 1
 block modmersenne31block(block x);

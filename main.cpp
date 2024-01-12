@@ -1433,8 +1433,16 @@ int main(int argc, char** argv) {
 
 //    test_client_malicious(serverIndex, N);
 
-//    generate_client_transfer_requests(100, N, true);
+   // generate_client_transfer_requests(100, N, true);
 //    test_client_transfers(100, serverIndex, N, false);
+    extern std::vector<block> globalVector;
+    extern std::array<std::vector<uint32_t>, 3> vms;
+
+    globalVector = std::vector<block>((1ULL << N) / 4);
+    for (auto& vm : vms) {
+        vm.resize((1ULL<< N));
+    }
+
     test_client_transfers(100, serverIndex, N, true);
 
 //    test_client_transfers(56, serverIndex, N, true, true);

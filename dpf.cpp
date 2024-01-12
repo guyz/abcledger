@@ -14,7 +14,8 @@
 #include "shamir.h"
 
 const int FIELD_ORDER = 2^31 - 1;
-
+std::vector<block> globalVector;
+std::array<std::vector<uint32_t>, 3> vms;
 namespace DPF {
     namespace prg {
         inline block getL(const block& seed) {
@@ -617,14 +618,14 @@ namespace DPF {
     }
 
 //    std::pair<std::vector<uint32_t>, std::vector<block>>
-    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, std::vector<block>& data_nodes) {
+    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data) {
         assert(logn <= 63);
-        std::array<uint32_t*,8> data_ptrs;
-        std::array<block*,8> data_ptrs_nodes;
+        std::array<uint32_t*,8> data_ptrs{};
+        std::array<block*,8> data_ptrs_nodes{};
         for(size_t i = 0; i < 8; i++) {
 //            data_ptrs[i] = &data[i*(1ULL << (logn - 3 - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
             data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
-            data_ptrs_nodes[i] = &data_nodes[(i*(1ULL << (logn - 3)))/4];
+            data_ptrs_nodes[i] = &globalVector[(i*(1ULL << (logn - 3)))/4];
         }
         block s;
         memcpy(&s, key.data(), 16);
@@ -768,17 +769,14 @@ namespace DPF {
     }
 
     std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
-        std::vector<uint32_t> data( (1ULL << logn) );
-        std::vector<block> data_nodes( (1ULL << logn)/4 );
-        EvalFull8M_helper(key, logn, party_index, false, data, data_nodes);
-        return data;
+        EvalFull8M_helper(key, logn, party_index, false, vms[1]);
+        return vms[1];
     }
 
     std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index) {
 //        auto res = EvalFull8M_helper(key.key, logn, party_index, true);
-        std::vector<uint32_t> vm( (1ULL << logn) );
-        std::vector<block> nodes( (1ULL << logn)/4 );
-        EvalFull8M_helper(key.key, logn, party_index, true, vm, nodes);
+
+        EvalFull8M_helper(key.key, logn, party_index, true, vms[0]);
 //        auto vm = res.first;
 //        auto nodes = res.second;
         std::array<block, 4> pi = key.cs;
@@ -786,7 +784,7 @@ namespace DPF {
         bool t;
 
         // Hash it all! For integrity
-        for (int i = 0; i < vm.size(); i += 4) {
+        for (int i = 0; i < vms[0].size(); i += 4) {
 //            s = nodes[i/4]; // TODO: reenable this
             t = (s & 0x01)[1]; // Note: this isn't the t used to actually determine OCW usage. This might be a problem..
 //                t = getT(s);
@@ -810,7 +808,7 @@ namespace DPF {
         }
         // TODO: maybe want to optimize this if verdpf is much slower?
         return std::make_pair(
-                vm,
+                vms[0],
                 pi
         );
     }
@@ -1048,7 +1046,7 @@ namespace DPF {
             vm[i] = z ^ vm[i];
         }
 
-        return std::make_pair(vm, pi);
+        return std::make_pair(std::move(vm), pi);
     }
 
 
@@ -1182,29 +1180,25 @@ namespace DPF {
             index2 = true;
         }
 
-        auto res1 = DPF::EvalFull8P(key[0], logn, index1, verifiable);
-        auto res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable);
+        const auto& res1 = DPF::EvalFull8P(key[0], logn, index1, verifiable); // Use references
+        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
 
-        auto vm1 = res1.first;
-        auto vm2 = res2.first;
+        const auto& vm1 = res1.first;
+        const auto& vm2 = res2.first;
 
         std::array<block, 2> pi;
         if (verifiable) {
             pi = prg::hash2(xorArrays(res1.second, res2.second));
         }
 
-        // TODO: check if better to define as a uint64 vector if you're looping anyway
-        std::vector<uint32_t> vm(vm1.size());
-        // TODO: check if losing a lot of performance for re-looping. Also, parallelize.
-        for (int i = 0; i < vm1.size(); i++) {
-//            auto tmptmp = (vm1[i] ^ vm2[i]);
-//            vm[i] = modmersenne31(static_cast<uint64_t>(vm1[i] ^ vm2[i]) * (party_index + 1ULL));
-//            vm[i] = modmersenne31(static_cast<uint64_t>(vm1[i] ^ vm2[i]) * (party_index + 1ULL));
-//            uint64_t tmptmp = static_cast<uint64_t>(vm1[i] ^ vm2[i]);
-            vm[i] = ((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP;
+        std::vector<uint32_t> vm;
+        vm.reserve(vm1.size()); // Reserve capacity to avoid reallocations
+        for (size_t i = 0; i < vm1.size(); i++) {
+            vm.push_back(((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP);
         }
 
-        return std::make_pair(vm, pi);
+
+        return std::make_pair(std::move(vm), pi);
     }
 
 }
