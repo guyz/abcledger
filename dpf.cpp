@@ -11,11 +11,14 @@
 #include <chrono>
 #include "utils.h"
 #include <emmintrin.h>
+#include <future>
 #include "shamir.h"
 
 const int FIELD_ORDER = 2^31 - 1;
 std::vector<block> globalVector;
-std::array<std::vector<uint32_t>, 3> vms;
+//std::array<std::vector<uint32_t>, 3> vms;
+//DPF::HackyVectorAllocator allocator;
+
 namespace DPF {
     namespace prg {
         inline block getL(const block& seed) {
@@ -769,14 +772,19 @@ namespace DPF {
     }
 
     std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
-        EvalFull8M_helper(key, logn, party_index, false, vms[1]);
-        return vms[1];
+        std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
+//        auto vm = allocator.allocate();
+        EvalFull8M_helper(key, logn, party_index, false, vm);
+        return vm;
     }
 
     std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index) {
-//        auto res = EvalFull8M_helper(key.key, logn, party_index, true);
-
-        EvalFull8M_helper(key.key, logn, party_index, true, vms[0]);
+        // there's a bunch of more time that can be saved by preallocating memory for this structure
+        // unfortunately, since this gets multithreaded it's not super trivial to write an allocator for it manually
+        // and using something like std::pmr (or another base memory allocator) would necessitate changes across the
+        // entire code for the types to match. Afaik there's about 500ms here on the table, maybe more
+        std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
+        EvalFull8M_helper(key.key, logn, party_index, true, vm);
 //        auto vm = res.first;
 //        auto nodes = res.second;
         std::array<block, 4> pi = key.cs;
@@ -784,7 +792,7 @@ namespace DPF {
         bool t;
 
         // Hash it all! For integrity
-        for (int i = 0; i < vms[0].size(); i += 4) {
+        for (int i = 0; i < vm.size(); i += 4) {
 //            s = nodes[i/4]; // TODO: reenable this
             t = (s & 0x01)[1]; // Note: this isn't the t used to actually determine OCW usage. This might be a problem..
 //                t = getT(s);
@@ -808,7 +816,7 @@ namespace DPF {
         }
         // TODO: maybe want to optimize this if verdpf is much slower?
         return std::make_pair(
-                vms[0],
+                vm,
                 pi
         );
     }
@@ -1180,25 +1188,30 @@ namespace DPF {
             index2 = true;
         }
 
-        const auto& res1 = DPF::EvalFull8P(key[0], logn, index1, verifiable); // Use references
-        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
+        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], logn, index1, verifiable);
+        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], logn, index2, verifiable);
 
-        const auto& vm1 = res1.first;
-        const auto& vm2 = res2.first;
+//        const auto& res1 = DPF::EvalFull8P(); // Use references
+//        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
 
-        std::array<block, 2> pi;
+        auto res1 = future_res1.get();
+        auto res2 = future_res2.get();
+
+        auto vm1 = std::move(res1.first);
+        const auto& vm2 = std::move(res2.first);
+
+        std::array<block, 2> pi{};
         if (verifiable) {
             pi = prg::hash2(xorArrays(res1.second, res2.second));
         }
 
-        std::vector<uint32_t> vm;
-        vm.reserve(vm1.size()); // Reserve capacity to avoid reallocations
+//        vm.reserve(vm1.size()); // Reserve capacity to avoid reallocations
         for (size_t i = 0; i < vm1.size(); i++) {
-            vm.push_back(((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP);
+            vm1[i] = (((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP);
         }
 
 
-        return std::make_pair(std::move(vm), pi);
+        return std::make_pair(vm1, pi);
     }
 
 }

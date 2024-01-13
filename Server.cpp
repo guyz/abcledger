@@ -1093,7 +1093,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     auto data_A = std::move(res_A.first);
     auto data_A1 = std::move(res_A1.first);
     auto data_B = std::move(res_B.first);
-    auto pi_B = std::move(res_B.second);
+    auto pi_B = res_B.second;
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 
@@ -1140,19 +1140,21 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
 //    // Randomize DPF inputs (fix codewords)
 
-// running these async takes ages for some reason - probably related to being a class function or something? idk
+    auto time1 = std::chrono::high_resolution_clock::now();
+
+    // running these async takes ages probably related to the network communication that fucks up if you try in parallel
     auto data_A_MAC = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first;
     auto data_A1_MAC = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
-
-//    auto future_data_A_MAC = std::async(std::launch::async, [&] {
-//        return std::move(this->evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first);
-//    });
+    auto time2 = std::chrono::high_resolution_clock::now();
+    auto evalT1 = time2 - time1;
+//    std::printf("time evalDeferred took: %zu us", std::chrono::duration_cast<std::chrono::microseconds>(evalT1).count());
+//    auto future_data_A_MAC = std::async(std::launch::async, *(this->evalDeferred), deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC);
 //    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
-//        return std::move(this->evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first);
+//        return evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
 //    });
     //    // Get the results from previous tasks
-//    auto data_A_MAC = future_data_A_MAC.get();
-//    auto data_A1_MAC = future_data_A1_MAC.get();
+//    const auto& data_A_MAC = future_data_A_MAC.get();
+//    const auto& data_A1_MAC = future_data_A1_MAC.get();
 
     // FProduct gates
 //    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
@@ -1333,9 +1335,9 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
         // Finalize the transaction after the MPC round / all checks have passed
         ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
         ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
-        debugPrint << "Transfer succeeded!" << std::endl;
+//        std::cout << "Transfer succeeded!" << std::endl;
     } else {
-        debugPrint << "Transfer failed! t_reconstructed not okay" << std::endl;
+        std::cout << "Transfer failed! t_reconstructed not okay" << std::endl;
     }
 
 }

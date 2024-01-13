@@ -1403,6 +1403,13 @@ int main(int argc, char** argv) {
 	    std::cout << "Usage: ./dpf_pir <server_index> <log_tree_size>" << std::endl;
         return -1;
     }
+    size_t N = std::strtoull(argv[2], nullptr, 10);
+    int serverIndex = std::atoi(argv[1]);
+
+    //    extern DPF::HackyVectorAllocator allocator;
+    //
+    //    allocator = DPF::HackyVectorAllocator();
+    //    allocator.init(3000, N);
 
     generate_tables();
     generate_random_sharings(100000, PP, 123);
@@ -1413,12 +1420,10 @@ int main(int argc, char** argv) {
 //    print_fake_zero_triplets_code();
 //    test_shamir_gf256();
 //    test_hash_functions();
-    size_t N = std::strtoull(argv[2], nullptr, 10);
 //    int x = run_playground_tests(N); // misc tests
 //    reconstruct_fake_xor_rand();
 //    test_shares_mult_gf256();
 //    mock_fproduct_test(N);
-    int serverIndex = std::atoi(argv[1]);
 //    deconstruct_deferreddpf(N, serverIndex);
 
 
@@ -1436,12 +1441,8 @@ int main(int argc, char** argv) {
    // generate_client_transfer_requests(100, N, true);
 //    test_client_transfers(100, serverIndex, N, false);
     extern std::vector<block> globalVector;
-    extern std::array<std::vector<uint32_t>, 3> vms;
 
     globalVector = std::vector<block>((1ULL << N) / 4);
-    for (auto& vm : vms) {
-        vm.resize((1ULL<< N));
-    }
 
     test_client_transfers(100, serverIndex, N, true);
 

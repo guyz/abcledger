@@ -2,9 +2,48 @@
 
 #include <cstdlib>
 #include <vector>
+#include <iostream>
+#include <mutex>
+#include <atomic>
 
 #include "Defines.h"
+
+
+
+
 namespace DPF {
+
+    class HackyVectorAllocator {
+
+    public:
+        HackyVectorAllocator() {
+            jobMutex = new std::mutex();
+            ptr = new std::atomic<size_t>;
+            *ptr = 0;
+        };
+
+        // allocate enough vs for the entire run - fuck releasing memory!
+        void init(size_t toInit, size_t logn) {
+//            vms.reserve(toInit);
+            for (auto i = 0; i < toInit; i++) {
+                auto new_vec = std::vector<uint32_t>((1ULL << logn));
+                vms.emplace_back(new_vec);
+            }
+        }
+
+        std::vector<uint32_t> allocate() {
+            *ptr=+1;
+//            std::lock_guard<std::mutex> lock(*jobMutex);
+//            auto my = vms.back();
+//            jobMutex->unlock();
+            return vms[*ptr];
+        }
+
+    private:
+        std::atomic<size_t>* ptr;
+        std::vector<std::vector<uint32_t>> vms;
+        std::mutex* jobMutex;
+    };
 
     struct KeyShare {
         std::vector<uint8_t> key;
