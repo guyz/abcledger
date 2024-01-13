@@ -983,11 +983,20 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
 
 // This is an implementation of TDDPF.BEval. It's in Server as it's a protocol.
 // However, the goal isn't to call this ad-hoc. This is just for tests and benchmarking.
-std::pair<std::vector<uint32_t>, std::array<block, 2>> Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
+std::vector<DPF::KeyShare> Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
     auto fullkey = fixCodeword(key, beta_0, beta_1, beta_2);
+    return fullkey;
+}
+
+std::pair<std::vector<uint32_t>, std::array<block, 2>>
+Server::getPair(const std::vector<DPF::KeyShare> &fullkey) const {
     return DPF::EvalShamir(fullkey, log2N, server_index);
 }
 
+//std::pair<std::vector<uint32_t>, std::array<block, 2>> Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
+//    auto fullkey = fixCodeword(key, beta_0, beta_1, beta_2);
+//    return DPF::EvalShamir(fullkey, log2N, server_index);
+//}
 
 // Batch FMult Gates
 std::vector<field> Server::multgate_helper(std::vector<field> inputs1, std::vector<field> inputs2) {
@@ -1137,24 +1146,16 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //#endif
 
 
-
+    const auto Key1 = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC);
+    const auto Key2 = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC);
 //    // Randomize DPF inputs (fix codewords)
 
-    auto time1 = std::chrono::high_resolution_clock::now();
 
-    // running these async takes ages probably related to the network communication that fucks up if you try in parallel
-    auto data_A_MAC = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC).first;
-    auto data_A1_MAC = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
-    auto time2 = std::chrono::high_resolution_clock::now();
-    auto evalT1 = time2 - time1;
-//    std::printf("time evalDeferred took: %zu us", std::chrono::duration_cast<std::chrono::microseconds>(evalT1).count());
-//    auto future_data_A_MAC = std::async(std::launch::async, *(this->evalDeferred), deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC);
 //    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
 //        return evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC).first;
 //    });
     //    // Get the results from previous tasks
-//    const auto& data_A_MAC = future_data_A_MAC.get();
-//    const auto& data_A1_MAC = future_data_A1_MAC.get();
+
 
     // FProduct gates
 //    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
@@ -1165,7 +1166,12 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
 //    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
 
-
+    auto future_data_A_MAC = std::async(std::launch::async, [&] {
+        return getPair(Key1).first;
+    });
+    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
+        return getPair(Key2).first;
+    });
 //    // Start asynchronous tasks for the rest of the computations
     auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
@@ -1180,12 +1186,15 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     field tag_share_A_prime = future_tag_share_A_prime.get();
     field tag_share_A1_prime = future_tag_share_A1_prime.get();
     field balance_A = future_balance_A.get();
+    const auto& data_A_MAC = future_data_A_MAC.get();
 
 
     // Start asynchronous tasks for the MAC computations
     auto future_tag_share_A_prime_MAC = std::async(std::launch::async, [&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
     });
+    const auto& data_A1_MAC = future_data_A1_MAC.get();
+
     auto future_tag_share_A1_prime_MAC = std::async(std::launch::async, [&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
     });

@@ -775,7 +775,7 @@ namespace DPF {
         std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
 //        auto vm = allocator.allocate();
         EvalFull8M_helper(key, logn, party_index, false, vm);
-        return vm;
+        return std::move(vm);
     }
 
     std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index) {
@@ -816,7 +816,7 @@ namespace DPF {
         }
         // TODO: maybe want to optimize this if verdpf is much slower?
         return std::make_pair(
-                vm,
+                std::move(vm),
                 pi
         );
     }

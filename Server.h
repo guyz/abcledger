@@ -35,7 +35,7 @@ public:
 
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
     void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
-    std::pair<std::vector<uint32_t>, std::array<block, 2>> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
+    std::vector<DPF::KeyShare> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
     void transferMalicious(const std::vector<DPF::KeyShare>& key_A,
                                    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A,
                                    const std::vector<DPF::KeyShare>& key_A1,
@@ -209,6 +209,8 @@ private:
 
     void reshare(field beta);
     std::vector<DPF::KeyShare> fixCodeword(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> &key, field beta_0, field beta_1, field beta_2);
+
+    std::pair<std::vector<uint32_t>, std::array<block, 2>> getPair(const std::vector<DPF::KeyShare> &fullkey) const;
 };
 
 

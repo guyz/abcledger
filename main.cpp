@@ -1004,7 +1004,10 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
                                      request.beta0, request.beta1, request.beta2, request.one0,
                                      request.one1, request.one2);
             auto time2 = std::chrono::high_resolution_clock::now();
-            evalT1 += time2 - time1;
+            // first run needs a warmup, so let's just ignore it
+            if (i != 0) {
+                evalT1 += time2 - time1;
+            }
         }
     }
 
