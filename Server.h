@@ -33,7 +33,7 @@ public:
                   const std::vector<DPF::KeyShare>& key_B,
                   field tag_A_share, field tag_A1_share, std::array<std::vector<uint32_t>, 10>& vms);
 
-    uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share);
+    uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share, std::array<std::vector<uint32_t>, 10>& vms);
     void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
     std::vector<DPF::KeyShare> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
     void transferMalicious(const std::vector<DPF::KeyShare>& key_A,
@@ -44,6 +44,9 @@ public:
                                    field tag_A_share, field tag_A1_share,
                                    field amount_0, field amount_1, field amount_2,
                                    field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms);
+
+    uint32_t balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey, uint32_t tag_share,
+                              field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms);
     void closeConnections();
 
     std::vector<uint32_t> ledger;

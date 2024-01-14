@@ -596,7 +596,7 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 
 // Runs many client transfers
 // Assumes generate_client_transfer_requests() was called with at least nRequests and the same logN
-void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMalicious, bool specificIndex = false) {
+void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMalicious, bool isTransfer = true, bool specificIndex = false) {
     int N = 1 << logN;
     Server server(serverIndex, N);
     std::chrono::duration<double> evalT1;
@@ -624,15 +624,26 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
         if (!isMalicious) {
             // Test semi-honest
             auto time1 = std::chrono::high_resolution_clock::now();
-            server.transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share, request.tag_A1_share, vms);
+            if (isTransfer) {
+                server.transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
+                                request.tag_A1_share, vms);
+            } else {
+                server.balance(request.kmsA1_i, request.tag_A1_share, vms);
+            }
             auto time2 = std::chrono::high_resolution_clock::now();
             evalT1 += time2 - time1;
         } else {
             // Test malicious
             auto time1 = std::chrono::high_resolution_clock::now();
-            server.transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i, request.kmsB_i, request.tag_A_share, request.tag_A1_share,
-                                     request.beta0, request.beta1, request.beta2, request.one0,
-                                     request.one1, request.one2, vms);
+            if (isTransfer) {
+                server.transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
+                                         request.kmsB_i, request.tag_A_share, request.tag_A1_share,
+                                         request.beta0, request.beta1, request.beta2, request.one0,
+                                         request.one1, request.one2, vms);
+            } else {
+                server.balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
+                                        request.one1, request.one2, vms);
+            }
             auto time2 = std::chrono::high_resolution_clock::now();
             // first run needs a warmup, so let's just ignore it
             if (i != 0) {
@@ -641,7 +652,11 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
         }
     }
 
-    std::cout << "Client transfers (malicious=" << isMalicious << ") took overall: " << evalT1.count() << "sec. Each iteration took: " << evalT1.count()/(idx_end-idx_start) << " secs. " << std::endl;
+    auto func = "getBalances";
+    if (isTransfer) {
+        func = "transfers";
+    }
+    std::cout << "Client " << func << " (malicious=" << isMalicious << ") took overall: " << evalT1.count() << "sec. Each iteration took: " << evalT1.count()/(idx_end-idx_start) << " secs. " << std::endl;
 
     server.closeConnections();
 }
@@ -1072,13 +1087,12 @@ int main(int argc, char** argv) {
 //    test_client_transfers(100, serverIndex, N, false);
 
     extern std::vector<block> globalVector0, globalVector1;
-//    extern std::vector<std::array<block, 4>> globalPiVector;
     globalVector0 = std::vector<block>((1ULL << N) / 4);
     globalVector1 = std::vector<block>((1ULL << N) / 4);
-//    globalPiVector.reserve((1ULL << N) / 4);
 
-    test_client_transfers(100, serverIndex, N, false);
-//    test_client_transfers(100, serverIndex, N, true);
+    bool isTransfer = false;
+    bool isMalicious = false;
+    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 
 //    test_client_transfers(56, serverIndex, N, true, true);
     return 0;

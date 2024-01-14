@@ -568,18 +568,248 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
 
 }
 
-uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share) {
-    // TODO: reenable
-    return 1;
+uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share, std::array<std::vector<uint32_t>, 10>& vms) {
+    auto future_res_A1 = std::async(std::launch::async, [&]() {
+        return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
+    });
 
-//    auto data = DPF::EvalShamir(key, log2N, server_index).first;
-//    uint32_t tag_share_prime = PIRW::innerprodff31(alphas, data);
-//
-//    // TODO: check access in MPC (Open(t-t') == 0)
-//
-//    uint32_t balance = PIRW::innerprodff31(data, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
-//    return balance;
+    auto res_A1 = future_res_A1.get();
+
+    auto &data_A1 = vms[0];
+
+    //    // Start asynchronous tasks for the rest of the computations
+    auto future_tag_share_prime = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+    });
+    auto future_balance = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+    });
+
+    // ... [other asynchronous tasks] ...
+    field tag_share_prime = future_tag_share_prime.get();
+    field balance = future_balance.get();
+
+    auto outputs = multfproduct_open({tag_share_prime, balance});
+
+    // refresh shares
+    tag_share_prime = outputs[0];
+    balance = outputs[1];
+
+    debugPrint << "Finished Fproduct gates" << std::endl;
+
+    // Open gate
+    field tag_delta_share = mod(static_cast<int64_t>(tag_share) - tag_share_prime, PP);
+
+    // Round 2 - Open and check bit in the clear. Also batch FLTZ gates and check Pi_B
+    // TODO: do we need to open and verify the degree? or just open? Same repeating question..
+    auto inputs = std::make_tuple(
+            tag_delta_share
+    );
+
+    // Run the round of communication
+    auto [output1, output2] = run_round(inputs);
+
+    // Process the received data
+    auto [zero_check_a_1] = output1;
+    auto [zero_check_a_2] = output2;
+    debugPrint << "Finished CheckZero Round 2" << std::endl;
+
+    // Reconstruct
+    std::vector<field> shares0 = {tag_delta_share};
+    std::vector<field> shares1 = {zero_check_a_1};
+    std::vector<field> shares2 = {zero_check_a_2};
+    auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
+
+    assert(reconstructed[0] == 0);
+    return balance;
+
 }
+
+uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey, uint32_t tag_share,
+                                  field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms) {
+    field r = PRSS();
+
+    auto future_res_A1 = std::async(std::launch::async, [&]() {
+        return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
+    });
+
+    auto res_A1 = future_res_A1.get();
+
+    auto &data_A1 = vms[0];
+
+    // Randomize inputs
+    std::vector<field> batch_outputs, batch_outputs_MACs; // collect all gates to batch check at the end
+    std::vector<field> inputs1 = {
+            one_0, one_1, one_2, tag_share
+    };
+    batch_outputs.insert(batch_outputs.end(), inputs1.begin(), inputs1.end());
+
+    std::vector<field> inputs2;
+    for (int i = 0; i < inputs1.size(); i++) {
+        inputs2.push_back(r);
+    }
+
+    std::vector<field> outputs = multgate_helper(inputs1, inputs2);
+    batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin(), outputs.end());
+
+    field one_0_MAC = outputs[0];
+    field one_1_MAC = outputs[1];
+    field one_2_MAC = outputs[2];
+    field tag_share_MAC = outputs[3];
+
+    //#ifndef DEBUG
+    debugPrint << "Finished randomizing inputs round" << std::endl;
+    //#endif
+
+    const auto Key1 = evalDeferred(deferredKey, one_0_MAC, one_1_MAC, one_2_MAC);
+
+    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
+        return DPF::EvalShamir(Key1, vms[2], vms[3], log2N, server_index, false);
+    });
+
+    //    // Start asynchronous tasks for the rest of the computations
+    auto future_tag_share_prime = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+    });
+    auto future_balance = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+    });
+
+    // ... [other asynchronous tasks] ...
+    field tag_share_prime = future_tag_share_prime.get();
+    field balance = future_balance.get();
+    //    const auto& data_A_MAC = future_data_A_MAC.get();
+    auto res_A1_MAC = future_data_A1_MAC.get();
+    auto &data_A1_MAC = vms[2];
+
+    // Start asynchronous tasks for the MAC computations
+    auto future_tag_share_prime_MAC = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
+    });
+    auto future_balance_MAC = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
+    });
+
+    // Get the results of the MAC computations
+    field tag_share_prime_MAC = future_tag_share_prime_MAC.get();
+    field balance_MAC = future_balance_MAC.get();
+
+    outputs = multfproduct_open({tag_share_prime, balance, tag_share_prime_MAC, balance_MAC});
+    batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 2);
+    batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 2, outputs.end());
+
+    // refresh shares
+    tag_share_prime = outputs[0];
+    balance = outputs[1];
+    tag_share_prime_MAC = outputs[2];
+    balance_MAC = outputs[3];
+
+    debugPrint << "Finished Fproduct gates" << std::endl;
+
+    // FCheckZero Gate
+
+    // Round 1 - multiply by a random value
+    // TODO: do I even need to authenticate the tags? Easier to just authenticate, but maybe can't cheat here anyway?
+    field tag_delta_share = mod(static_cast<int64_t>(tag_share) - tag_share_prime, PP);
+    field tag_delta_share_MAC = mod(static_cast<int64_t>(tag_share_MAC) - tag_share_prime_MAC, PP);
+
+    field r1 = PRSS();
+    outputs = multgate_helper({tag_delta_share, tag_delta_share_MAC}, {r1, r1});
+    batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 1);
+    batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 1, outputs.end());
+    debugPrint << "Finished CheckZero Round 1" << std::endl;
+
+    // Round 2 - Open and check bit in the clear. Also batch FLTZ gates and check Pi_B
+    // TODO: do we need to open and verify the degree? or just open? Same repeating question..
+    auto inputs = std::make_tuple(
+            outputs[0],
+            outputs[1],
+            r
+    );
+
+    // Run the round of communication
+    auto [output1, output2] = run_round(inputs);
+
+    // Process the received data
+    auto [zero_check_a_1, zero_check_b_1, r_share1] = output1;
+    auto [zero_check_a_2, zero_check_b_2, r_share2] = output2;
+    debugPrint << "Finished CheckZero Round 2" << std::endl;
+
+    // Reconstruct
+    std::vector<field> shares0 = {outputs[0], outputs[1], r};
+    std::vector<field> shares1 = {zero_check_a_1, zero_check_b_1, r_share1};
+    std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, r_share2};
+    auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
+
+    // TODO: reenable
+    assert(reconstructed[0] == 0);
+    assert(reconstructed[1] == 0);
+
+    //// BatchVerify
+    field reconstructed_r = reconstructed[2];
+    std::vector<field> coeffs = detrandints(batch_outputs.size(), PP);
+    int64_t u, w;
+    u = 0;
+    w = 0;
+    for (int i = 0; i < coeffs.size(); i++) {
+        field tmp = mod(static_cast<int64_t>(coeffs[i]) * batch_outputs[i], PP);
+        w = mod(w + tmp, PP);
+        tmp = mod(static_cast<int64_t>(coeffs[i]) * batch_outputs_MACs[i], PP);
+        u = mod(u + tmp, PP);
+    }
+    field t = mod(u - reconstructed_r * w, PP);
+
+    // CheckZero on t
+    r1 = PRSS();
+    outputs = multgate_helper({t}, {r1});
+    debugPrint << "Finished BatchVerify (CheckZero) Round 1" << std::endl;
+
+    // Open
+    auto inp_check = std::make_tuple(
+            outputs
+    );
+
+    // Run the round of communication
+    auto [out_check1, out_check2] = run_round(inp_check);
+
+    // Process the received data
+    auto [check_share1] = out_check1;
+    auto [check_share2] = out_check2;
+    auto t_reconstructed = reconstruct_helper(outputs, check_share1, check_share2)[0];
+    debugPrint << "Finished BatchVerify (CheckZero) Round 2 and t = " << t_reconstructed << std::endl;
+
+    //    // TODO: remove temp
+    //    // Open
+    //    auto inp_tmp = std::make_tuple(
+    //            batch_outputs,
+    //            batch_outputs_MACs
+    //    );
+    //
+    //    // Run the round of communication
+    //    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
+    //
+    //    // Process the received data
+    //    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
+    //    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
+    //    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
+    //    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
+    //
+    //    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
+    //        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
+    //        debugPrint << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
+    //    }
+    //    // TODO: end remove temp
+
+
+    //    assert(t_reconstructed == 0);
+    if (t_reconstructed == 0) {
+        return balance;
+    } else {
+        std::cout << "Balance failed! t_reconstructed not okay" << std::endl;
+    }
+
+}
+
 
 void Server::reshare(field beta) {
 
