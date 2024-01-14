@@ -24,6 +24,7 @@
 #include <vector>
 #include <cstring>
 #include "DebugPrint.h"
+#include "BS_thread_pool.hpp"
 
 // TODO: Things to implement:
 // Frand, Fzero, Fltz, PRZS, PRSS
@@ -1089,10 +1090,16 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
 //    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
 //    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
-
-    auto future_res_A = std::async(std::launch::async, DPF::EvalShamir, key_A, log2N, server_index, false);
-    auto future_res_A1 = std::async(std::launch::async, DPF::EvalShamir, key_A1, log2N, server_index, false);
-    auto future_res_B = std::async(std::launch::async, DPF::EvalShamir, key_B, log2N, server_index, true);
+    extern BS::thread_pool pool;
+    auto future_res_A = pool.submit_task([&] {
+        return DPF::EvalShamir(key_A, log2N, server_index, false);
+    });
+    auto future_res_A1 = pool.submit_task([&] {
+        return DPF::EvalShamir(key_A1, log2N, server_index, false);
+    });
+    auto future_res_B = pool.submit_task([&] {
+        return DPF::EvalShamir(key_B, log2N, server_index, true);
+    });
 
     // Getting the results (this will wait for the thread to finish if it hasn't yet)
     auto res_A = future_res_A.get();
@@ -1166,20 +1173,20 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
 //    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
 
-    auto future_data_A_MAC = std::async(std::launch::async, [&] {
+    auto future_data_A_MAC = pool.submit_task([&] {
         return getPair(Key1).first;
     });
-    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
+    auto future_data_A1_MAC = pool.submit_task([&] {
         return getPair(Key2).first;
     });
 //    // Start asynchronous tasks for the rest of the computations
-    auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
+    auto future_tag_share_A_prime = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
     });
-    auto future_tag_share_A1_prime = std::async(std::launch::async, [&] {
+    auto future_tag_share_A1_prime = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
     });
-    auto future_balance_A = std::async(std::launch::async, [&] {
+    auto future_balance_A = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
     });
     // ... [other asynchronous tasks] ...
@@ -1190,15 +1197,15 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
 
     // Start asynchronous tasks for the MAC computations
-    auto future_tag_share_A_prime_MAC = std::async(std::launch::async, [&] {
+    auto future_tag_share_A_prime_MAC = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
     });
     const auto& data_A1_MAC = future_data_A1_MAC.get();
 
-    auto future_tag_share_A1_prime_MAC = std::async(std::launch::async, [&] {
+    auto future_tag_share_A1_prime_MAC = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
     });
-    auto future_balance_A_MAC = std::async(std::launch::async, [&] {
+    auto future_balance_A_MAC = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
     });
 

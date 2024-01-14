@@ -13,9 +13,11 @@
 #include <emmintrin.h>
 #include <future>
 #include "shamir.h"
+#include "BS_thread_pool.hpp"
 
 const int FIELD_ORDER = 2^31 - 1;
 std::vector<block> globalVector0, globalVector1;
+BS::thread_pool pool(192);
 //extern std::vector<std::array<block, 4>> globalPiVector;
 //std::array<std::vector<uint32_t>, 3> vms;
 //DPF::HackyVectorAllocator allocator;
@@ -900,7 +902,7 @@ namespace DPF {
     }
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
+    inline void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
         if(lvl == stop) {
             std::array<reg_arr_union,8> tmp;
             reg_arr_union CW;
@@ -945,8 +947,15 @@ namespace DPF {
             sL[i] ^= (sCW & tt);
             sR[i] ^= (sCW & tt);
         }
-        EvalFullRecursive8M(key, sL, tL, lvl+1, stop, res, res_nodes, CW, party_index, verifiable);
-        EvalFullRecursive8M(key, sR, tR, lvl+1, stop, res, res_nodes, CW, party_index, verifiable);
+
+        EvalFullRecursive8M(key, sL, tL, lvl + 1, stop, res, res_nodes, CW, party_index, verifiable);
+
+        EvalFullRecursive8M(key, sR, tR, lvl + 1, stop, res, res_nodes, CW, party_index, verifiable);
+
+
+//
+//        r1.get();
+//        r2.get();
     }
 
     std::vector<uint8_t> EvalFull8(const std::vector<uint8_t>& key, size_t logn) {
@@ -1265,8 +1274,12 @@ namespace DPF {
             index2 = true;
         }
 
-        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], logn, index1, verifiable, false);
-        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], logn, index2, verifiable, true);
+        auto future_res1 = pool.submit_task([&] {
+            return DPF::EvalFull8P(key[0], logn, index1, verifiable, false);
+        });
+        auto future_res2 = pool.submit_task([&] {
+            return DPF::EvalFull8P(key[1], logn, index2, verifiable, true);
+        });
 
 //        const auto& res1 = DPF::EvalFull8P(); // Use references
 //        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
