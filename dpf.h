@@ -69,18 +69,20 @@ namespace DPF {
     // 32-bit messages
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>> GenM(size_t alpha, size_t logn, uint32_t msg);
     void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index = false, bool verifiable = false);
-    std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index = false);
+    void EvalFull8M(const std::vector<uint8_t>& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false);
 
     // New DPF constructions (Updated 2023)
+    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, bool pi_index);
+
     // (1,2)-DPF+
     std::pair<KeyShare, KeyShare>
     GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2, bool verifiable = false);
-    std::vector<uint32_t> EvalFull8P(const KeyShare& key, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
+    int EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
 
     // (1,3)-SS-DPF
     std::vector<std::vector<KeyShare>>
     GenShamir(size_t alpha, size_t logn, uint32_t m, bool verifiable = false);
-    std::pair<std::vector<uint32_t>, std::array<block, 2>> EvalShamir(const std::vector<KeyShare>& key, size_t logn, uint64_t party_index, bool verifiable = false);
+    int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm0, std::vector<uint32_t>& vm1, size_t logn, uint64_t party_index, bool verifiable = false);
 
     std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> DeferredGenShamir(size_t alpha, size_t logn);
 

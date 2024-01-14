@@ -443,27 +443,35 @@ std::pair<std::tuple<Args...>, std::tuple<Args...>> Server::run_round(const std:
     return {output1, output2};
 }
 
+// Malicious version of the protocol
 void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
                       const std::vector<DPF::KeyShare>& key_A1,
                       const std::vector<DPF::KeyShare>& key_B,
-                      field tag_A_share, field tag_A1_share) {
+                      field tag_A_share, field tag_A1_share, std::array<std::vector<uint32_t>, 10>& vms) {
 
-    //// Semi-honest to malicious changes:
-    // 1. Randomize all inputs (check in the code) and batchverify at the end
-    // 2. FCheckZero gates compared to Open() for zero tests
-    // 3. Amount_Br validity - might as well leave it in the code..
-    // Conclusion: can just write the semi-honest protocol with a couple of notes in another color..
+    auto future_res_A = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key_A, vms[0], vms[1], log2N, server_index, false);
+    });
 
-    // Expand DPFs
-    // TODO: could/should be parallelized?
-    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
-    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
-    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
+    auto future_res_A1 = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key_A1, vms[2], vms[3], log2N, server_index, false);
+    });
 
-    auto data_A = std::move(res_A.first);
-    auto data_A1 = std::move(res_A1.first);
-    auto data_B = std::move(res_B.first);
-    auto pi_B = std::move(res_B.second);
+    auto future_res_B = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key_B, vms[4], vms[5], log2N, server_index, true);
+    });
+
+    // Getting the results (this will wait for the thread to finish if it hasn't yet)
+    auto res_A = future_res_A.get();
+    auto res_A1 = future_res_A1.get();
+    auto res_B = future_res_B.get();
+
+    // TODO: maybe continue to use VMs?
+    auto& data_A = vms[0];
+    auto& data_A1 = vms[2];
+    auto& data_B = vms[4];
+//    auto pi_B = res_B.second;
+    std::array<block, 2> pi_B; // TODO: fix this..
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 
@@ -474,11 +482,27 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     field amount_A = PIRW::sumvecff31(data_A);
     field amount_B = PIRW::sumvecff31(data_B);
 
-    // FProduct gates
-    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
-    field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
-    field balance_A = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+//    // Start asynchronous tasks for the rest of the computations
+    auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
+    });
+    auto future_tag_share_A1_prime = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+    });
+    auto future_balance_A = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+    });
+    // ... [other asynchronous tasks] ...
+    field tag_share_A_prime = future_tag_share_A_prime.get();
+    field tag_share_A1_prime = future_tag_share_A1_prime.get();
+    field balance_A = future_balance_A.get();
 
+
+//    // FProduct gates
+//    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
+//    field tag_share_A1_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+//    field balance_A = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+//
     auto outputs = multfproduct_open({ tag_share_A_prime, tag_share_A1_prime, balance_A });
 
     // refresh shares
@@ -545,13 +569,16 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
 }
 
 uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share) {
-    auto data = DPF::EvalShamir(key, log2N, server_index).first;
-    uint32_t tag_share_prime = PIRW::innerprodff31(alphas, data);
+    // TODO: reenable
+    return 1;
 
-    // TODO: check access in MPC (Open(t-t') == 0)
-
-    uint32_t balance = PIRW::innerprodff31(data, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
-    return balance;
+//    auto data = DPF::EvalShamir(key, log2N, server_index).first;
+//    uint32_t tag_share_prime = PIRW::innerprodff31(alphas, data);
+//
+//    // TODO: check access in MPC (Open(t-t') == 0)
+//
+//    uint32_t balance = PIRW::innerprodff31(data, ledger); // In practice, this is the full SumProduct protocol but we will defer it to the end..?
+//    return balance;
 }
 
 void Server::reshare(field beta) {
@@ -933,10 +960,13 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     }
     debugPrint << std::endl;
 
-    auto vms = DPF::EvalShamir(fullkey, log2N, server_index).first;
+    std::vector<uint32_t> vm0 = std::vector<uint32_t>((1ULL<< log2N));
+    std::vector<uint32_t> vm1 = std::vector<uint32_t>((1ULL<< log2N));
+
+    int vv = DPF::EvalShamir(fullkey, vm0, vm1, log2N, server_index);
 
     for (int i = 0; i<50; i++) {
-        debugPrint << "Value at " << i << ": " << vms[i] << std::endl;
+        debugPrint << "Value at " << i << ": " << vm0[i] << std::endl;
     }
 
     debugPrint << "Sanity checks below.." << std::endl;
@@ -946,7 +976,7 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     if (server_index > 0) {
         idx = 1;
     }
-    auto vm1 = DPF::EvalFull8M(key.first.key, log2N, idx);
+    DPF::EvalFull8M(key.first.key, vm1, log2N, idx);
     idx = 0;
 
     if (server_index == 2) {
@@ -954,7 +984,8 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     }
     debugPrint << "Server index: " << server_index << ", idx: " << idx << std::endl;
 
-    auto vm2 = DPF::EvalFull8M(key.second.key, log2N, idx);
+    std::vector<uint32_t> vm2 = std::vector<uint32_t>((1ULL<< log2N));
+    DPF::EvalFull8M(key.second.key, vm2, log2N, idx);
     for (int i = 0; i<50; i++) {
         debugPrint << "DPF0 Value at " << i << ": " << vm1[i] << std::endl;
         debugPrint << "DPF1 Value at " << i << ": " << vm2[i] << std::endl;
@@ -966,13 +997,17 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
     if (server_index > 0) {
         idx = 1;
     }
-    auto vm11 = DPF::EvalFull8M(fullkey[0].key, log2N, idx);
+
+    std::vector<uint32_t> vm11 = std::vector<uint32_t>((1ULL<< log2N));
+    DPF::EvalFull8M(fullkey[0].key, vm11, log2N, idx);
     idx = 0;
 
     if (server_index == 2) {
         idx = 1;
     }
-    auto vm12 = DPF::EvalFull8M(fullkey[1].key, log2N, idx);
+
+    std::vector<uint32_t> vm12 = std::vector<uint32_t>((1ULL<< log2N));
+    DPF::EvalFull8M(fullkey[1].key, vm12, log2N, idx);
     for (int i = 0; i<50; i++) {
         debugPrint << "DPF1 0 Value at " << i << ": " << vm11[i] << std::endl;
         debugPrint << "DPF1 1 Value at " << i << ": " << vm12[i] << std::endl;
@@ -988,10 +1023,9 @@ std::vector<DPF::KeyShare> Server::evalDeferred(std::pair<DPF::DeferredKeyShare,
     return fullkey;
 }
 
-std::pair<std::vector<uint32_t>, std::array<block, 2>>
-Server::getPair(const std::vector<DPF::KeyShare> &fullkey) const {
-    return DPF::EvalShamir(fullkey, log2N, server_index);
-}
+//int Server::getPair(const std::vector<DPF::KeyShare> &fullkey, std::vector<uint32_t>& vm0, std::vector<uint32_t>& vm1) const {
+//    return DPF::EvalShamir(fullkey, vm0, vm1, log2N, server_index, false);
+//}
 
 //std::pair<std::vector<uint32_t>, std::array<block, 2>> Server::evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
 //    auto fullkey = fixCodeword(key, beta_0, beta_1, beta_2);
@@ -1050,7 +1084,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
                                const std::vector<DPF::KeyShare>& key_B,
                                field tag_A_share, field tag_A1_share,
                                field amount_0, field amount_1, field amount_2,
-                               field one_0, field one_1, field one_2) {
+                               field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms) {
 
     //// Protocol description. Items in the same line --> round happens in parallel (or they have the same context)
     // TODO: figure out what is not a must for security.. Open stuff:
@@ -1090,19 +1124,33 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
 //    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
 
-    auto future_res_A = std::async(std::launch::async, DPF::EvalShamir, key_A, log2N, server_index, false);
-    auto future_res_A1 = std::async(std::launch::async, DPF::EvalShamir, key_A1, log2N, server_index, false);
-    auto future_res_B = std::async(std::launch::async, DPF::EvalShamir, key_B, log2N, server_index, true);
+//    EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, size_t logn, uint64_t party_index, bool verifiable) {
+//    auto future_res_A = std::async(std::launch::async, DPF::EvalShamir, vms[0], vms[1], key_A, log2N, server_index, false);
+//    auto future_res_A1 = std::async(std::launch::async, DPF::EvalShamir, vms[2], vms[3], key_A1, log2N, server_index, false);
+//    auto future_res_B = std::async(std::launch::async, DPF::EvalShamir, vms[4], vms[5], key_B, log2N, server_index, true);
+    auto future_res_A = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key_A, vms[0], vms[1], log2N, server_index, false);
+    });
+
+    auto future_res_A1 = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key_A1, vms[2], vms[3], log2N, server_index, false);
+    });
+
+    auto future_res_B = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key_B, vms[4], vms[5], log2N, server_index, true);
+    });
 
     // Getting the results (this will wait for the thread to finish if it hasn't yet)
     auto res_A = future_res_A.get();
     auto res_A1 = future_res_A1.get();
     auto res_B = future_res_B.get();
 
-    auto data_A = std::move(res_A.first);
-    auto data_A1 = std::move(res_A1.first);
-    auto data_B = std::move(res_B.first);
-    auto pi_B = res_B.second;
+    // TODO: maybe continue to use VMs?
+    auto& data_A = vms[0];
+    auto& data_A1 = vms[2];
+    auto& data_B = vms[4];
+//    auto pi_B = res_B.second;
+    std::array<block, 2> pi_B; // TODO: fix this..
     block pi0_B = pi_B[0];
     block pi1_B = pi_B[1]; // TODO: check pis..
 
@@ -1167,11 +1215,12 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
 
     auto future_data_A_MAC = std::async(std::launch::async, [&] {
-        return getPair(Key1).first;
+        return DPF::EvalShamir(Key1, vms[6], vms[7], log2N, server_index, false);
     });
     auto future_data_A1_MAC = std::async(std::launch::async, [&] {
-        return getPair(Key2).first;
+        return DPF::EvalShamir(Key2, vms[8], vms[9], log2N, server_index, false);
     });
+
 //    // Start asynchronous tasks for the rest of the computations
     auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
@@ -1186,14 +1235,16 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     field tag_share_A_prime = future_tag_share_A_prime.get();
     field tag_share_A1_prime = future_tag_share_A1_prime.get();
     field balance_A = future_balance_A.get();
-    const auto& data_A_MAC = future_data_A_MAC.get();
-
+//    const auto& data_A_MAC = future_data_A_MAC.get();
+    auto res_A_MAC = future_data_A_MAC.get();
+    auto& data_A_MAC = vms[6];
 
     // Start asynchronous tasks for the MAC computations
     auto future_tag_share_A_prime_MAC = std::async(std::launch::async, [&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
     });
-    const auto& data_A1_MAC = future_data_A1_MAC.get();
+    auto res_A1_MAC = future_data_A1_MAC.get();
+    auto& data_A1_MAC = vms[8];
 
     auto future_tag_share_A1_prime_MAC = std::async(std::launch::async, [&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);

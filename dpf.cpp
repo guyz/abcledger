@@ -820,11 +820,12 @@ namespace DPF {
 //        );
     }
 
-    std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
-        std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
+    // TODO: can prob remove this too.
+    void EvalFull8M(const std::vector<uint8_t>& key, std::vector<uint32_t>& vm, size_t logn, bool party_index) {
+//        std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
 //        auto vm = allocator.allocate();
         EvalFull8M_helper(key, logn, party_index, false, vm, false);
-        return std::move(vm);
+//        return std::move(vm);
     }
 
     // TODO: can probably remove this if Ver is happening on the Shamir level..
@@ -1105,7 +1106,8 @@ namespace DPF {
         }
 
         // TODO: Implement Eval8M for a single value..
-        auto vm0 = DPF::EvalFull8M(key0.key, logn);
+        std::vector<uint32_t> vm0 = std::vector<uint32_t>((1ULL<< logn));
+        DPF::EvalFull8M(key0.key, vm0, logn);
         uint32_t z = m1 ^ vm0[alpha];
 
         key0.z = z;
@@ -1114,23 +1116,25 @@ namespace DPF {
         return std::make_pair(key0, key1);
     }
 
-    std::vector<uint32_t> EvalFull8P(const KeyShare& key, size_t logn, bool party_index, bool verifiable, bool pi_index) {
+    int EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index, bool verifiable, bool pi_index) {
         uint32_t z = key.z;
-        std::vector<uint32_t> vm;
         std::array<block, 4> pi = key.cs;
 
-        if (verifiable) {
-            vm = DPF::VerEvalFull8M(key, logn, party_index, pi_index);
-        } else {
-            vm = DPF::EvalFull8M(key.key, logn, party_index);
-        }
+        EvalFull8M_helper(key.key, logn, party_index, verifiable, vm, pi_index);
+
+//        if (verifiable) {
+//            vm = DPF::VerEvalFull8M(key, logn, party_index, pi_index);
+//        } else {
+//            vm = DPF::EvalFull8M(key.key, logn, party_index);
+//        }
 
         // TODO: low priority - insert this into the recursive function instead of looping all values again. May help..
         for (int i = 0; i < vm.size(); i++) {
             vm[i] = z ^ vm[i];
         }
 
-        return std::move(vm);
+        return 1;
+//        return std::move(vm);
 //        return std::make_pair(std::move(vm), pi);
     }
 
@@ -1252,7 +1256,7 @@ namespace DPF {
         return {key0, key1, key2};
     }
 
-    std::pair<std::vector<uint32_t>, std::array<block, 2>> EvalShamir(const std::vector<KeyShare>& key, size_t logn, uint64_t party_index, bool verifiable) {
+    int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, size_t logn, uint64_t party_index, bool verifiable) {
         // TODO: might be able to save some performance with using (2, 4) as the relevant points so I can use shifts instead of multiplication. Worth taking a look.
         bool index1 = false;
         bool index2 = false;
@@ -1265,8 +1269,16 @@ namespace DPF {
             index2 = true;
         }
 
-        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], logn, index1, verifiable, false);
-        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], logn, index2, verifiable, true);
+//        EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
+        auto future_res1 = std::async(std::launch::async, [&](){
+            return DPF::EvalFull8P(key[0], vm1, logn, index1, verifiable, false);
+        });
+        auto future_res2 = std::async(std::launch::async, [&](){
+            return DPF::EvalFull8P(key[1], vm2, logn, index2, verifiable, true);
+        });
+
+//        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], vm1, logn, index1, verifiable, false);
+//        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], vm2, logn, index2, verifiable, true);
 
 //        const auto& res1 = DPF::EvalFull8P(); // Use references
 //        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
@@ -1274,8 +1286,8 @@ namespace DPF {
         auto res1 = future_res1.get();
         auto res2 = future_res2.get();
 
-        auto vm1 = std::move(res1);
-        const auto& vm2 = std::move(res2);
+//        auto vm1 = std::move(res1);
+//        const auto& vm2 = std::move(res2);
 
         std::array<block, 4> pi1{ZeroBlock,ZeroBlock,ZeroBlock,ZeroBlock};
 
@@ -1298,7 +1310,8 @@ namespace DPF {
             pi = {pi2[0], pi2[1]};
         }
 
-        return std::make_pair(std::move(vm1), pi);
+        return 1;
+//        return std::make_pair(std::move(vm1), pi);
     }
 
 }
