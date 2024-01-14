@@ -16,6 +16,7 @@
 #include <filesystem>
 #include <string>
 #include "utils.h"
+#include <map>
 
 int test_hash_functions() {
     uint32_t r1 = rand();
@@ -1063,6 +1064,81 @@ void test_dpf_single_eval(int logN) {
 
 }
 
+void handleBenchmark(int benchmark) {
+    switch (benchmark) {
+        case 0:
+            std::cout << "Benchmark is 0" << std::endl;
+            break;
+        case 1:
+            std::cout << "Benchmark is 1" << std::endl;
+            break;
+        case 2:
+            std::cout << "Benchmark is 2" << std::endl;
+            break;
+        case 3:
+            std::cout << "Benchmark is 3" << std::endl;
+            break;
+        case 4:
+            std::cout << "Benchmark is 4" << std::endl;
+            break;
+        case 5:
+            std::cout << "Benchmark is 5" << std::endl;
+            break;
+        case 6:
+            std::cout << "Benchmark is 6" << std::endl;
+            break;
+        case 7:
+            std::cout << "Benchmark is 7" << std::endl;
+            break;
+        case 8:
+            std::cout << "Benchmark is 8" << std::endl;
+            break;
+        case 9:
+            std::cout << "Benchmark is 9" << std::endl;
+            break;
+        default:
+            std::cout << "Benchmark is out of range (0-9)" << std::endl;
+            break;
+    }
+}
+
+void benchmark_suite(std::vector<std::string>& benchmarks) {
+    std::map<std::string, int> allBenchmarks = {
+            {"DPF.Gen", 0},
+            {"DPF.EvalAll", 1},
+            {"ShamirDPF.Gen", 2},
+            {"ShamirDPF.EvalAll", 3},
+            {"VerShamirDPF.Gen", 4},
+            {"VerShamirDPF.EvalAll", 5},
+            {"balance", 6},
+            {"balanceMalicious", 7},
+            {"transfer", 8},
+            {"transferMalicious", 9}
+    };
+
+    // Vector to store the corresponding values
+    std::vector<int> benchmarksToRun;
+
+    // Loop over the string vector
+    for (const std::string& key : benchmarks) {
+        // Check if the key exists in the map
+        if (allBenchmarks.find(key) != allBenchmarks.end()) {
+            // Add the corresponding value to the values vector
+            benchmarksToRun.push_back(allBenchmarks[key]);
+        } else {
+            // If the key is not found, you might want to handle this case
+            std::cout << "Key '" << key << "' not found in the map." << std::endl;
+        }
+    }
+
+    for (auto benchmark : benchmarksToRun) {
+        handleBenchmark(benchmark);
+    }
+
+    std::cout << "finished running all benchmarks!" << std::endl;
+}
+
+
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "
               << std::filesystem::current_path()
@@ -1094,7 +1170,7 @@ int main(int argc, char** argv) {
 //    test_shares_mult_gf256();
 //    mock_fproduct_test(N);
 //    deconstruct_deferreddpf(N, serverIndex);
-    test_dpf_single_eval(10);
+//    test_dpf_single_eval(10);
 
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
@@ -1114,9 +1190,9 @@ int main(int argc, char** argv) {
     globalVector0 = std::vector<block>((1ULL << N) / 4);
     globalVector1 = std::vector<block>((1ULL << N) / 4);
 
-    bool isTransfer = false;
-    bool isMalicious = false;
-//    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
+    bool isTransfer = true;
+    bool isMalicious = true;
+    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 
 //    test_client_transfers(56, serverIndex, N, true, true);
     return 0;
