@@ -445,6 +445,7 @@ namespace DPF {
         return std::make_pair(key0, key1);
     }
 
+    // WARNING: Deprecated and incomplete
     // This allows merging multiple 1-bit DPFs into a single one in parallel.
     // While promising for parallelism of DPF executions, it is 10x slower because of the memory copies/bit operations
     // So not used for now. A direction to expand this is to instead of combining 1-bit DPFs, to combine 8-bit DPFs.
@@ -659,6 +660,58 @@ namespace DPF {
         }
         EvalFullRecursive8(key, sL, tL, lvl+1, stop, res);
         EvalFullRecursive8(key, sR, tR, lvl+1, stop, res);
+    }
+
+
+    uint32_t EvalM(const std::vector<uint8_t>& key, size_t x, size_t logn) {
+        assert(logn <= 63);
+        assert(x < (1<<logn));
+        block s;
+        memcpy(&s, key.data(), 16);
+        uint8_t t = key.data()[16];
+        size_t stop = logn >=2 ? logn - 2 : 0; // pack 2 layers in final CW
+        for(size_t i = 0; i < stop; i++) {
+            Log::v("eval", s);
+            Log::v("eval", "t: %d", t);
+            block sL = prg::getL(s);
+            uint8_t tL = getT(sL);
+            sL = clr(sL);
+            block sR = prg::getR(s);
+            uint8_t tR = getT(sR);
+            sR = clr(sR);
+            if(t) {
+                block sCW;
+                memcpy(&sCW, key.data() + 17 + i*18, 16);
+                uint8_t tLCW = key.data()[17+i*18+16];
+                uint8_t tRCW = key.data()[17+i*18+17];
+                Log::v("eval", "tcw %d %d", tLCW, tRCW);
+                tL^=tLCW;
+                tR^=tRCW;
+                sL^=sCW;
+                sR^=sCW;
+            }
+            if(x & (1ULL<<(logn-1-i))) {
+                s = sR;
+                t = tR;
+            } else {
+                s = sL;
+                t = tL;
+            }
+        }
+        Log::v("evalfin", s);
+
+        if(t) {
+            reg_arr_union tmp;
+            reg_arr_union CW;
+            memcpy(CW.arr, key.data()+key.size()-16, 16);
+            tmp.reg = CW.reg ^ ConvertBlock(s);
+            return tmp.arr32[x % 4];
+        }
+        else {
+            reg_arr_union tmp;
+            tmp.reg = ConvertBlock(s);
+            return tmp.arr32[x % 4];
+        }
     }
 
 //    std::pair<std::vector<uint32_t>, std::vector<block>>
@@ -1105,10 +1158,10 @@ namespace DPF {
             key1.key = keys.second;
         }
 
-        // TODO: Implement Eval8M for a single value..
-        std::vector<uint32_t> vm0 = std::vector<uint32_t>((1ULL<< logn));
-        DPF::EvalFull8M(key0.key, vm0, logn);
-        uint32_t z = m1 ^ vm0[alpha];
+//        std::vector<uint32_t> vm0 = std::vector<uint32_t>((1ULL<< logn));
+//        DPF::EvalFull8M(key0.key, vm0, logn);
+//        uint32_t z = m1 ^ vm0[alpha];
+        uint32_t z = m1 ^ DPF::EvalM(key0.key, alpha, logn);
 
         key0.z = z;
         key1.z = z;
@@ -1134,8 +1187,6 @@ namespace DPF {
         }
 
         return 1;
-//        return std::move(vm);
-//        return std::make_pair(std::move(vm), pi);
     }
 
 
@@ -1144,8 +1195,6 @@ namespace DPF {
     GenShamir(size_t alpha, size_t logn, uint32_t m, bool verifiable) {
         std::vector<std::pair<int64_t, int64_t>> shares = gen_shares(3, 2, m, PP);
         uint32_t m1 = shares[0].second;
-//        uint32_t m2 = modmersenne31(static_cast<uint64_t>(shares[1].second) * MODINV2);
-//        uint32_t m3 = modmersenne31(static_cast<uint64_t>(shares[2].second) * MODINV3);
         uint32_t m2 = (shares[1].second * MODINV2) % PP;
         uint32_t m3 = (shares[2].second * MODINV3) % PP;
 
@@ -1257,7 +1306,6 @@ namespace DPF {
     }
 
     int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, size_t logn, uint64_t party_index, bool verifiable) {
-        // TODO: might be able to save some performance with using (2, 4) as the relevant points so I can use shifts instead of multiplication. Worth taking a look.
         bool index1 = false;
         bool index2 = false;
 
@@ -1277,21 +1325,11 @@ namespace DPF {
             return DPF::EvalFull8P(key[1], vm2, logn, index2, verifiable, true);
         });
 
-//        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], vm1, logn, index1, verifiable, false);
-//        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], vm2, logn, index2, verifiable, true);
-
-//        const auto& res1 = DPF::EvalFull8P(); // Use references
-//        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
-
         auto res1 = future_res1.get();
         auto res2 = future_res2.get();
 
-//        auto vm1 = std::move(res1);
-//        const auto& vm2 = std::move(res2);
-
         std::array<block, 4> pi1{ZeroBlock,ZeroBlock,ZeroBlock,ZeroBlock};
 
-//        vm.reserve(vm1.size()); // Reserve capacity to avoid reallocations
         for (size_t i = 0; i < vm1.size(); i++) {
             vm1[i] = (((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP);
 

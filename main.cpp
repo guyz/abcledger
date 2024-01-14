@@ -1038,6 +1038,30 @@ void test_shares_mult_gf256() {
     std::cout << "Test done!" << std::endl;
 }
 
+void test_dpf_single_eval(int logN) {
+    int N = 1 << logN;
+    auto keys = DPF::GenM(10, logN, 25);
+
+    // Generating the underlying vectors..
+    std::array<std::vector<uint32_t>, 2> vms;
+    for (int i = 0; i < 2; i++) {
+        vms[i] = std::vector<uint32_t>((1ULL<< logN));
+    }
+
+    DPF::EvalFull8M(keys.first, vms[0], logN, false);
+    DPF::EvalFull8M(keys.second, vms[1], logN, true);
+
+//    std::cout << (vms[0][9] ^ vms[1][9]) << std::endl;
+//    std::cout << (vms[0][10] ^ vms[1][10]) << std::endl;
+    for (int i = 0; i < N; i++) {
+        std::cout << (vms[0][i] ^ vms[1][i]) << std::endl;
+
+        auto v1 = DPF::EvalM(keys.first, i, logN);
+        auto v2 = DPF::EvalM(keys.second, i, logN);
+        std::cout << "v2: " << (v1 ^ v2) << std::endl;
+    }
+
+}
 
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "
@@ -1070,7 +1094,7 @@ int main(int argc, char** argv) {
 //    test_shares_mult_gf256();
 //    mock_fproduct_test(N);
 //    deconstruct_deferreddpf(N, serverIndex);
-
+    test_dpf_single_eval(10);
 
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
@@ -1092,7 +1116,7 @@ int main(int argc, char** argv) {
 
     bool isTransfer = false;
     bool isMalicious = false;
-    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
+//    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 
 //    test_client_transfers(56, serverIndex, N, true, true);
     return 0;

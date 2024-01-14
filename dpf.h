@@ -69,6 +69,7 @@ namespace DPF {
     // 32-bit messages
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>> GenM(size_t alpha, size_t logn, uint32_t msg);
     void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index = false, bool verifiable = false);
+    uint32_t EvalM(const std::vector<uint8_t>& key, size_t x, size_t logn);
     void EvalFull8M(const std::vector<uint8_t>& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false);
 
     // New DPF constructions (Updated 2023)
