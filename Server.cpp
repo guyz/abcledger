@@ -1469,21 +1469,21 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     field tag_share_A1_prime = future_tag_share_A1_prime.get();
     field balance_A = future_balance_A.get();
 //    const auto& data_A_MAC = future_data_A_MAC.get();
-    auto res_A_MAC = future_data_A_MAC.get();
-    auto& data_A_MAC = vms[6];
+    future_data_A_MAC.wait();
+    //auto& data_A_MAC = vms[6];
 
     // Start asynchronous tasks for the MAC computations
     auto future_tag_share_A_prime_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, vms[6])), PP);
     });
-    auto res_A1_MAC = future_data_A1_MAC.get();
-    auto& data_A1_MAC = vms[8];
+    future_data_A1_MAC.wait();
+    //auto& data_A1_MAC = vms[8];
 
     auto future_tag_share_A1_prime_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, vms[8])), PP);
     });
     auto future_balance_A_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(vms[8], ledger)), PP);
     });
 
     // Get the results of the MAC computations

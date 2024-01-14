@@ -1094,7 +1094,7 @@ int main(int argc, char** argv) {
 //    test_shares_mult_gf256();
 //    mock_fproduct_test(N);
 //    deconstruct_deferreddpf(N, serverIndex);
-    test_dpf_single_eval(10);
+    // test_dpf_single_eval(10);
 
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
@@ -1114,9 +1114,9 @@ int main(int argc, char** argv) {
     globalVector0 = std::vector<block>((1ULL << N) / 4);
     globalVector1 = std::vector<block>((1ULL << N) / 4);
 
-    bool isTransfer = false;
-    bool isMalicious = false;
-//    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
+    bool isTransfer = true;
+    bool isMalicious = true;
+    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 
 //    test_client_transfers(56, serverIndex, N, true, true);
     return 0;

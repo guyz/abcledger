@@ -12,6 +12,7 @@
 #include <emmintrin.h>
 #include "shamir.h"
 #include <random>
+#include <experimental/filesystem>
 
 bool are_blocks_equal(const block& a, const block& b) {
     // Compare 128-bit blocks by treating them as an array of integers

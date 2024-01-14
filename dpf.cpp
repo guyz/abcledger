@@ -17,7 +17,7 @@
 
 const int FIELD_ORDER = 2^31 - 1;
 std::vector<block> globalVector0, globalVector1;
-BS::thread_pool pool(32);
+BS::thread_pool pool(10);
 //extern std::vector<std::array<block, 4>> globalPiVector;
 //std::array<std::vector<uint32_t>, 3> vms;
 //DPF::HackyVectorAllocator allocator;
@@ -1327,10 +1327,10 @@ namespace DPF {
         }
 
         auto future_res1 = pool.submit_task([&] {
-            return DPF::EvalFull8P(key[0], logn, index1, verifiable, false);
+            return DPF::EvalFull8P(key[0], vm1, logn, index1, verifiable, false);
         });
         auto future_res2 = pool.submit_task([&] {
-            return DPF::EvalFull8P(key[1], logn, index2, verifiable, true);
+            return DPF::EvalFull8P(key[1], vm2, logn, index2, verifiable, true);
         });
 
 //        const auto& res1 = DPF::EvalFull8P(); // Use references

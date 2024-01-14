@@ -15,7 +15,7 @@
 
 #include <sstream>
 
-const std::string DATA_DIR = "/home/ubuntu/abcledger/data/";
+const std::string DATA_DIR = "/home/bob/workspace/abcledger/data/";
 const int OTHER_PRIME = 4294967111;
 const int PP = 2147483647;
 const uint64_t MODINV2 = 1073741824;
