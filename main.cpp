@@ -1107,7 +1107,7 @@ int main(int argc, char** argv) {
 
 //    test_client_malicious(serverIndex, N);
 
-//    generate_client_transfer_requests(100, N, true);
+    //generate_client_transfer_requests(100, N, true);
 //    test_client_transfers(100, serverIndex, N, false);
 
     extern std::vector<block> globalVector0, globalVector1;

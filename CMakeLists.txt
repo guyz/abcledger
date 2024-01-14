@@ -37,12 +37,12 @@ set(SRCS
         dpf.cpp
         hashdatastore.cpp)
 
-set(CMAKE_C_FLAGS "-ffunction-sections -Wall -fopenmp -maes -msse2 -msse4.1 -mavx2 -mavx512f -mavx512vl -mavx512dq -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
+set(CMAKE_C_FLAGS "-ffunction-sections -Wall -fopenmp -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow -Wno-ignored-attributes")
 #set(CMAKE_C_FLAGS "-ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
 set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS}")
 
 # Select flags.
-SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
+SET(CMAKE_CXX_FLAGS_RELEASE "-Ofast -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O2 -g -ggdb -rdynamic")
 SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
 #SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")

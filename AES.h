@@ -11,6 +11,9 @@
 #include <cryptopp/modes.h>
 #include <cryptopp/osrng.h>
 
+typedef unsigned char byte;
+
+
 class AES {
 public:
     AES();

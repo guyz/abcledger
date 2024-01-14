@@ -9,7 +9,6 @@
 #include "Defines.h"
 #include <cryptopp/sha.h>
 
-
 namespace DPF {
 
     class HackyVectorAllocator {
