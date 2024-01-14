@@ -7,6 +7,9 @@
 
 #include <wmmintrin.h>
 #include <xmmintrin.h>
+#include <cryptopp/aes.h>
+#include <cryptopp/modes.h>
+#include <cryptopp/osrng.h>
 
 class AES {
 public:
@@ -46,7 +49,10 @@ private:
     block mRoundKeysDec[11];
 };
 
+void EncryptAesEcb(const block& inputBlock, block& outputBlock);
+
 // An AES instance with a fixed and public key
 extern const AES mAesFixedKey;
 extern const AES mAesFixedKey2;
+extern CryptoPP::ECB_Mode<CryptoPP::AES>::Encryption ecbEncryptor;
 

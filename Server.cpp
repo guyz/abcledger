@@ -1342,8 +1342,8 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    assert(t_reconstructed == 0);
     if (t_reconstructed == 0) {
         // Finalize the transaction after the MPC round / all checks have passed
-        ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
-        ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
+        ledger = PIRW::subvff31(ledger, data_A);
+        ledger = PIRW::addvff31(ledger, data_B);
 //        std::cout << "Transfer succeeded!" << std::endl;
     } else {
         std::cout << "Transfer failed! t_reconstructed not okay" << std::endl;

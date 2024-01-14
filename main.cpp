@@ -1013,6 +1013,7 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
 
     std::cout << "Client transfers (malicious=" << isMalicious << ") took overall: " << evalT1.count() << "sec. Each iteration took: " << evalT1.count()/(idx_end-idx_start) << " secs. " << std::endl;
 
+    server.closeConnections();
 }
 
 void test_client_malicious(int serverIndex, int logN) {
@@ -1335,10 +1336,11 @@ void benchmark_hashfuncs() {
         arr[3] ^= res[3];
 
         unsigned char digest[CryptoPP::SHA512::DIGESTSIZE];
-        block* blk = reinterpret_cast<block*>(digest);
+//        block* blk = reinterpret_cast<block*>(digest);
 
         time1 = std::chrono::high_resolution_clock::now();
-        DPF::prg::hash1v2(seed, alpha, blk);
+//        DPF::prg::hash1v2(seed, alpha, blk);
+        auto blk = DPF::prg::hash1v2(seed, alpha);
         time2 = std::chrono::high_resolution_clock::now();
         evalT2 += time2 - time1;
 

@@ -48,7 +48,6 @@ namespace DPF {
             tmp.reg = seed;
 
             for (int i = 0; i < 4; ++i) {
-                // TODO: reenable..
                 tmp.arr32[0] = tmp.arr32[0] << i;
                 full_seed[i] = tmp.reg;
                 output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
@@ -59,19 +58,34 @@ namespace DPF {
             return output;
         }
 
-        // Implementation of H() from the verifiable DPF paper.
-        void hash1v2(const block& seed, uint32_t x, block* output) {
+//        void hash1v2(const block& seed, uint32_t x, block* output) {
+        std::array<block, 4> hash1v2(const block& seed, uint32_t x) {
+            std::array<block, 4> full_seed, output;
             reg_arr_union tmp;
             tmp.reg = seed;
 
-            // Compute SHA-256 hash
-            CryptoPP::SHA512 hash;
-            unsigned char digest[CryptoPP::SHA512::DIGESTSIZE];
-            hash.CalculateDigest(digest, tmp.arr, 16);
-
-            // Split the SHA-256 hash into two __m128i blocks
-            block* blockPtr = reinterpret_cast<block*>(digest);
+            for (int i = 0; i < 4; ++i) {
+                tmp.arr32[0] = tmp.arr32[0] << i;
+                full_seed[i] = tmp.reg;
+                EncryptAesEcb(full_seed[i], output[i]);
+//                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
+            }
         }
+
+        // Implementation of H() from the verifiable DPF paper.
+//        void hash1v2(const block& seed, uint32_t x, block* output) {
+//            reg_arr_union tmp;
+//            tmp.reg = seed;
+//
+//            // Compute SHA-256 hash
+//            CryptoPP::SHA512 hash;
+//            unsigned char digest[CryptoPP::SHA512::DIGESTSIZE];
+//            hash.CalculateDigest(digest, tmp.arr, 16);
+//
+//            // Split the SHA-256 hash into two __m128i blocks
+//            block* blockPtr = reinterpret_cast<block*>(digest);
+//        }
+
 
         // Implementation of H'() from the verifiable DPF paper.
 //        std::array<block, 2> hash2(const std::array<block, 4>& h) {

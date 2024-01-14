@@ -10,7 +10,6 @@
 #include <cryptopp/sha.h>
 
 
-
 namespace DPF {
 
     class HackyVectorAllocator {
@@ -87,7 +86,8 @@ namespace DPF {
 
     namespace prg {
         std::array<block, 4> hash1(const block& seed, uint32_t x);
-        void hash1v2(const block& seed, uint32_t x, block* output);
+        std::array<block, 4> hash1v2(const block& seed, uint32_t x);
+//        void hash1v2(const block& seed, uint32_t x, block* output);
         std::array<block, 4> hash2(const std::array<block, 4>& h);
 
     } // namespace prg

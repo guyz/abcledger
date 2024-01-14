@@ -44,6 +44,7 @@ public:
                                    field tag_A_share, field tag_A1_share,
                                    field amount_0, field amount_1, field amount_2,
                                    field one_0, field one_1, field one_2);
+    void closeConnections();
 
     std::vector<uint32_t> ledger;
     std::vector<uint32_t> alphas;
@@ -70,7 +71,6 @@ private:
     void startListening();
     void establishConnections();
     void acceptConnections();
-    void closeConnections();
     bool waitForAck(int socket);
 
     void initPreprocessingData();
