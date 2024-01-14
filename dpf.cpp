@@ -15,7 +15,8 @@
 #include "shamir.h"
 
 const int FIELD_ORDER = 2^31 - 1;
-std::vector<block> globalVector;
+std::vector<block> globalVector0, globalVector1;
+//extern std::vector<std::array<block, 4>> globalPiVector;
 //std::array<std::vector<uint32_t>, 3> vms;
 //DPF::HackyVectorAllocator allocator;
 
@@ -42,37 +43,63 @@ namespace DPF {
 
         // Implementation of H() from the verifiable DPF paper.
         std::array<block, 4> hash1(const block& seed, uint32_t x) {
-            std::array<block, 4> output;
+            std::array<block, 4> full_seed, output;
+            reg_arr_union tmp;
+            tmp.reg = seed;
 
-            // Convert x to block type and XOR with seed to create 'v'
-            block v = _mm_xor_si128(seed, _mm_set1_epi32(x));
-
-            // Run encryption for i between [0, 3]
             for (int i = 0; i < 4; ++i) {
-                block temp = _mm_add_epi32(v, _mm_set1_epi32(i)); // Add i to v
-                output[i] = mAesFixedKey.encryptECB_MMO(temp); // Encrypt and store in output
+                // TODO: reenable..
+                tmp.arr32[0] = tmp.arr32[0] << i;
+                full_seed[i] = tmp.reg;
+                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
             }
 
+            // TODO: this prob does nothing because mmo blocks need 8 blocks I think..
+//            mAesFixedKey.encryptECB_MMO_Blocks(full_seed.data(), 4, output.data());
             return output;
         }
 
+        // Implementation of H() from the verifiable DPF paper.
+        void hash1v2(const block& seed, uint32_t x, block* output) {
+            reg_arr_union tmp;
+            tmp.reg = seed;
+
+            // Compute SHA-256 hash
+            CryptoPP::SHA512 hash;
+            unsigned char digest[CryptoPP::SHA512::DIGESTSIZE];
+            hash.CalculateDigest(digest, tmp.arr, 16);
+
+            // Split the SHA-256 hash into two __m128i blocks
+            block* blockPtr = reinterpret_cast<block*>(digest);
+        }
+
         // Implementation of H'() from the verifiable DPF paper.
-        std::array<block, 2> hash2(const std::array<block, 4>& h) {
-            std::array<block, 2> output;
+//        std::array<block, 2> hash2(const std::array<block, 4>& h) {
+//            std::array<block, 2> output;
+//
+//            // XOR all 4 blocks in h
+//            block combined = _mm_xor_si128(h[0], h[1]);
+//            combined = _mm_xor_si128(combined, h[2]);
+//            combined = _mm_xor_si128(combined, h[3]);
+//
+//            // Encrypt combined value
+//            output[0] = mAesFixedKey.encryptECB_MMO(combined);
+//
+//            // Encrypt combined value + 1
+//            block combinedPlusOne = _mm_add_epi64(combined, _mm_set1_epi64x(1));
+//            output[1] = mAesFixedKey.encryptECB_MMO(combinedPlusOne);
+//
+//            return output;
+//        }
 
-            // XOR all 4 blocks in h
-            block combined = _mm_xor_si128(h[0], h[1]);
-            combined = _mm_xor_si128(combined, h[2]);
-            combined = _mm_xor_si128(combined, h[3]);
+        std::array<block, 4> hash2(const std::array<block, 4>& h) {
+            std::array<block,4> out;
 
-            // Encrypt combined value
-            output[0] = mAesFixedKey.encryptECB_MMO(combined);
+            for (int i = 0; i < 4; ++i) {
+                out[i] = mAesFixedKey.encryptECB_MMO(h[i]);
+            }
 
-            // Encrypt combined value + 1
-            block combinedPlusOne = _mm_add_epi64(combined, _mm_set1_epi64x(1));
-            output[1] = mAesFixedKey.encryptECB_MMO(combinedPlusOne);
-
-            return output;
+            return out;
         }
 
     }
@@ -621,15 +648,23 @@ namespace DPF {
     }
 
 //    std::pair<std::vector<uint32_t>, std::vector<block>>
-    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data) {
+    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, bool pi_index) {
         assert(logn <= 63);
         std::array<uint32_t*,8> data_ptrs{};
         std::array<block*,8> data_ptrs_nodes{};
         for(size_t i = 0; i < 8; i++) {
 //            data_ptrs[i] = &data[i*(1ULL << (logn - 3 - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
             data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
-            data_ptrs_nodes[i] = &globalVector[(i*(1ULL << (logn - 3)))/4];
+
+            if (verifiable) {
+                if (pi_index) {
+                    data_ptrs_nodes[i] = &globalVector1[(i*(1ULL << (logn - 3)))/4];
+                } else {
+                    data_ptrs_nodes[i] = &globalVector0[(i*(1ULL << (logn - 3)))/4];
+                }
+            }
         }
+
         block s;
         memcpy(&s, key.data(), 16);
         uint8_t t = key.data()[16];
@@ -774,51 +809,80 @@ namespace DPF {
     std::vector<uint32_t> EvalFull8M(const std::vector<uint8_t>& key, size_t logn, bool party_index) {
         std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
 //        auto vm = allocator.allocate();
-        EvalFull8M_helper(key, logn, party_index, false, vm);
+        EvalFull8M_helper(key, logn, party_index, false, vm, false);
         return std::move(vm);
     }
 
-    std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index) {
+    // TODO: can probably remove this if Ver is happening on the Shamir level..
+    std::vector<uint32_t> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index, bool pi_index) {
         // there's a bunch of more time that can be saved by preallocating memory for this structure
         // unfortunately, since this gets multithreaded it's not super trivial to write an allocator for it manually
         // and using something like std::pmr (or another base memory allocator) would necessitate changes across the
         // entire code for the types to match. Afaik there's about 500ms here on the table, maybe more
         std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
-        EvalFull8M_helper(key.key, logn, party_index, true, vm);
+        EvalFull8M_helper(key.key, logn, party_index, true, vm, pi_index);
 //        auto vm = res.first;
 //        auto nodes = res.second;
         std::array<block, 4> pi = key.cs;
         block s;
         bool t;
 
+        return std::move(vm);
         // Hash it all! For integrity
-        for (int i = 0; i < vm.size(); i += 4) {
-//            s = nodes[i/4]; // TODO: reenable this
-            t = (s & 0x01)[1]; // Note: this isn't the t used to actually determine OCW usage. This might be a problem..
-//                t = getT(s);
-            uint32_t i_offset = i - (i % 4);
+//
+//        // TODO: remove temp
+//        bool ignore_hash = false;
+//        if (ignore_hash) {
+//            return std::make_pair(
+//                    std::move(vm),
+//                    pi
+//            );
+//        }
 
-            std::array<block, 4> pi_tilde = prg::hash1(s, i_offset);
+//        for (int i = 0; i < vm.size(); i += 4) {
+//            s = globalVector[i/4]; // TODO: reenable this
+//            t = (s & 0x01)[1]; // Note: this isn't the t used to actually determine OCW usage. This might be a problem..
+////                t = getT(s);
+//            uint32_t i_offset = i - (i % 4);
+//
+//            std::array<block, 4> pi_tilde = prg::hash1(s, i_offset);
+//
+//            auto corrected_pi_tilde = pi_tilde;
+//            for (int j=0; j<4; j++) {
+//                if (t) {
+//                    pi_tilde[j] = _mm_xor_si128(pi_tilde[j], key.cs[j]);
+//                }
+//                corrected_pi_tilde[j] = _mm_xor_si128(corrected_pi_tilde[j], pi[j]);
+//            }
+//
+//            if (pi_index == false) {
+//                globalPiVector0[i / 4] = corrected_pi_tilde;
+//            } else {
+//                globalPiVector1[i / 4] = corrected_pi_tilde;
+//            }
+//
+//
+////            std::array<block, 4> h2_output = prg::hash2(corrected_pi_tilde);
+////
+////            pi[0] = _mm_xor_si128(pi[0], h2_output[0]);
+////            pi[1] = _mm_xor_si128(pi[1], h2_output[1]);
+////            pi[2] = _mm_xor_si128(pi[2], h2_output[2]);
+////            pi[3] = _mm_xor_si128(pi[3], h2_output[3]);
+//
+//            // NOTE: assuming just XOR is okay
+////            pi[0] = _mm_xor_si128(pi[0], corrected_pi_tilde[0]);
+////            pi[1] = _mm_xor_si128(pi[1], corrected_pi_tilde[1]);
+////            pi[2] = _mm_xor_si128(pi[2], corrected_pi_tilde[2]);
+////            pi[3] = _mm_xor_si128(pi[3], corrected_pi_tilde[3]);
+//
+//        }
 
-            auto corrected_pi_tilde = pi_tilde;
-            for (int j=0; j<4; j++) {
-                if (t) {
-                    corrected_pi_tilde[j] = _mm_xor_si128(corrected_pi_tilde[j], key.cs[j]);
-                }
-                corrected_pi_tilde[j] = _mm_xor_si128(corrected_pi_tilde[j], pi[j]);
-            }
-            std::array<block, 2> h2_output = prg::hash2(corrected_pi_tilde);
+//        pi = prg::hash2(pi);
 
-            pi[0] = _mm_xor_si128(pi[0], h2_output[0]);
-            pi[1] = _mm_xor_si128(pi[1], h2_output[1]);
-            pi[2] = _mm_xor_si128(pi[2], h2_output[0]);
-            pi[3] = _mm_xor_si128(pi[3], h2_output[1]);
-        }
-        // TODO: maybe want to optimize this if verdpf is much slower?
-        return std::make_pair(
-                std::move(vm),
-                pi
-        );
+//        return std::make_pair(
+//                std::move(vm),
+//                pi
+//        );
     }
 
     // optimized for vectorized ops
@@ -1036,15 +1100,13 @@ namespace DPF {
         return std::make_pair(key0, key1);
     }
 
-    std::pair<std::vector<uint32_t>, std::array<block, 4>> EvalFull8P(const KeyShare& key, size_t logn, bool party_index, bool verifiable) {
+    std::vector<uint32_t> EvalFull8P(const KeyShare& key, size_t logn, bool party_index, bool verifiable, bool pi_index) {
         uint32_t z = key.z;
         std::vector<uint32_t> vm;
-        std::array<block, 4> pi;
+        std::array<block, 4> pi = key.cs;
 
         if (verifiable) {
-            auto res = DPF::VerEvalFull8M(key, logn, party_index);
-            vm = res.first;
-            pi = res.second;
+            vm = DPF::VerEvalFull8M(key, logn, party_index, pi_index);
         } else {
             vm = DPF::EvalFull8M(key.key, logn, party_index);
         }
@@ -1054,7 +1116,8 @@ namespace DPF {
             vm[i] = z ^ vm[i];
         }
 
-        return std::make_pair(std::move(vm), pi);
+        return std::move(vm);
+//        return std::make_pair(std::move(vm), pi);
     }
 
 
@@ -1188,8 +1251,8 @@ namespace DPF {
             index2 = true;
         }
 
-        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], logn, index1, verifiable);
-        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], logn, index2, verifiable);
+        auto future_res1 = std::async(std::launch::async, DPF::EvalFull8P, key[0], logn, index1, verifiable, false);
+        auto future_res2 = std::async(std::launch::async, DPF::EvalFull8P, key[1], logn, index2, verifiable, true);
 
 //        const auto& res1 = DPF::EvalFull8P(); // Use references
 //        const auto& res2 = DPF::EvalFull8P(key[1], logn, index2, verifiable); // Use references
@@ -1197,21 +1260,31 @@ namespace DPF {
         auto res1 = future_res1.get();
         auto res2 = future_res2.get();
 
-        auto vm1 = std::move(res1.first);
-        const auto& vm2 = std::move(res2.first);
+        auto vm1 = std::move(res1);
+        const auto& vm2 = std::move(res2);
 
-        std::array<block, 2> pi{};
-        if (verifiable) {
-            pi = prg::hash2(xorArrays(res1.second, res2.second));
-        }
+        std::array<block, 4> pi1{ZeroBlock,ZeroBlock,ZeroBlock,ZeroBlock};
 
 //        vm.reserve(vm1.size()); // Reserve capacity to avoid reallocations
         for (size_t i = 0; i < vm1.size(); i++) {
             vm1[i] = (((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP);
+
+            if (verifiable) {
+                if (i % 4 == 0) {
+                    int ii = i / 4;
+                    auto h1 = prg::hash1(_mm_xor_si128(globalVector0[ii], globalVector1[ii]), i);
+                    pi1 = xorArrays(pi1, h1);
+                }
+            }
         }
 
+        std::array<block, 2> pi;
+        if (verifiable) {
+            auto pi2 = prg::hash2(pi1);
+            pi = {pi2[0], pi2[1]};
+        }
 
-        return std::make_pair(vm1, pi);
+        return std::make_pair(std::move(vm1), pi);
     }
 
 }

@@ -17,8 +17,17 @@ if(NOT Boost_FOUND)
 endif()
 include_directories("/usr/include")
 include_directories("/usr/include/boost")
+include_directories("/opt/homebrew/opt/cryptopp/include")
+include_directories("/usr/include/cryptopp")
+include_directories("/usr/include/crypto++")
 
 include_directories(${Boost_INCLUDE_DIRS})
+
+# Locate Crypto++ library
+#find_package(CryptoPP REQUIRED)
+
+# Include directories for Crypto++
+include_directories(${CRYPTOPP_INCLUDE_DIR})
 
 set(SRCS
         AES.cpp
@@ -39,9 +48,10 @@ SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
 #SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
 
 #add_compile_definitions(ENABLE_DEBUG)
+link_directories("/usr/lib/x86_64-linux-gnu")
 
 add_executable(dpf_pir ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h Server.cpp Server.h DebugPrint.cpp DebugPrint.h)
-target_link_libraries(dpf_pir crypto)
+target_link_libraries(dpf_pir crypto cryptopp)
 #target_link_options(dpf_pir PRIVATE -fopenmp)
 
 add_executable(bench ${SRCS} bench.cpp aligned_allocator.cpp aligned_allocator.h)

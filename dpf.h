@@ -7,7 +7,7 @@
 #include <atomic>
 
 #include "Defines.h"
-
+#include <cryptopp/sha.h>
 
 
 
@@ -76,7 +76,7 @@ namespace DPF {
     // (1,2)-DPF+
     std::pair<KeyShare, KeyShare>
     GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2, bool verifiable = false);
-    std::pair<std::vector<uint32_t>, std::array<block, 4>> EvalFull8P(const KeyShare& key, size_t logn, bool party_index = false, bool verifiable = false);
+    std::vector<uint32_t> EvalFull8P(const KeyShare& key, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
 
     // (1,3)-SS-DPF
     std::vector<std::vector<KeyShare>>
@@ -87,10 +87,11 @@ namespace DPF {
 
     namespace prg {
         std::array<block, 4> hash1(const block& seed, uint32_t x);
-        std::array<block, 2> hash2(const std::array<block, 4>& h);
+        void hash1v2(const block& seed, uint32_t x, block* output);
+        std::array<block, 4> hash2(const std::array<block, 4>& h);
 
     } // namespace prg
 
     std::pair<KeyShare, KeyShare> VerGenM(size_t alpha, size_t logn, uint32_t msg);
-    std::pair<std::vector<uint32_t>, std::array<block, 4>> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index);
+    std::vector<uint32_t> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index, bool pi_index = false);
 }

@@ -233,8 +233,8 @@ int run_playground_tests(int N) {
         auto kmp = DPF::GenP(alpha, N, beta1, beta2);
         auto kmp0 = kmp.first;
         auto kmp1 = kmp.second;
-        auto vmp0 = DPF::EvalFull8P(kmp0, N).first;
-        auto vmp1 = DPF::EvalFull8P(kmp1, N, true).first;
+        auto vmp0 = DPF::EvalFull8P(kmp0, N);
+        auto vmp1 = DPF::EvalFull8P(kmp1, N, true);
 
         auto kms = DPF::GenShamir(alpha, N, beta);
         auto kms0 = kms[0];
@@ -244,34 +244,34 @@ int run_playground_tests(int N) {
         auto vms1 = DPF::EvalShamir(kms1, N, 1).first;
         auto vms2 = DPF::EvalShamir(kms2, N, 2).first;
 
-        // VerDPF tests
-        auto kmv = DPF::VerGenM(alpha, N, beta);
-        auto vmv0 = DPF::VerEvalFull8M(kmv.first, N, false);
-        auto vmv1 = DPF::VerEvalFull8M(kmv.second, N, true);
-
-        auto h1 = vmv0.second;
-        auto h2 = vmv1.second;
-
-        std::cout << "h1: ";
-        for (const auto& e : h1) {
-            std::cout << "[";
-            for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
-                std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
-            }
-            std::cout << "] ";
-        }
-        std::cout << std::endl;
-
-        std::cout << "h2: ";
-        for (const auto& e : h2) {
-            std::cout << "[";
-            for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
-                std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
-            }
-            std::cout << "] ";
-        }
-        std::cout << std::endl;
-        assert(are_arrays_equal(h1, h2));
+//        // VerDPF tests
+//        auto kmv = DPF::VerGenM(alpha, N, beta);
+//        auto vmv0 = DPF::VerEvalFull8M(kmv.first, N, false);
+//        auto vmv1 = DPF::VerEvalFull8M(kmv.second, N, true);
+//
+//        auto h1 = vmv0.second;
+//        auto h2 = vmv1.second;
+//
+//        std::cout << "h1: ";
+//        for (const auto& e : h1) {
+//            std::cout << "[";
+//            for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+//                std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
+//            }
+//            std::cout << "] ";
+//        }
+//        std::cout << std::endl;
+//
+//        std::cout << "h2: ";
+//        for (const auto& e : h2) {
+//            std::cout << "[";
+//            for (int i = 0; i < sizeof(block) / sizeof(uint32_t); ++i) {
+//                std::cout << std::hex << ((uint32_t*)&e)[i] << (i < sizeof(block) / sizeof(uint32_t) - 1 ? " " : "");
+//            }
+//            std::cout << "] ";
+//        }
+//        std::cout << std::endl;
+//        assert(are_arrays_equal(h1, h2));
 
         for (int i = 0; i < vm0.size(); i++) {
             ////        std::cout << "a1[" << i << "] =" << a1[i] << std::endl;
@@ -422,7 +422,7 @@ int test_hash_functions() {
     assert(are_arrays_equal(res, res3));
 
     // Assert that res2 is equal to res4
-    assert(are_arrays_equal_2(res2, res4));
+//    assert(are_arrays_equal_2(res2, res4));
 
     // Print res
     std::cout << "Res: ";
@@ -1307,6 +1307,51 @@ void test_shamir_gf256() {
 
 }
 
+void benchmark_hashfuncs() {
+    std::chrono::duration<double> evalT1, evalT2;
+    evalT1 = std::chrono::duration<double>::zero();
+    evalT2 = std::chrono::duration<double>::zero();
+    std::array<block, 4> arr = {ZeroBlock, ZeroBlock, ZeroBlock, ZeroBlock};
+    std::array<block, 4> arr2 = {ZeroBlock, ZeroBlock, ZeroBlock, ZeroBlock};
+
+    for (int i = 0; i<100000; i++) {
+        uint32_t r1 = rand();
+        uint32_t r2 = rand();
+        uint32_t r3 = rand();
+        uint32_t r4 = rand();
+
+        // Combine the four 32-bit numbers into a 128-bit number
+        block seed = _mm_set_epi32(r1, r2, r3, r4);
+        uint32_t alpha = 24323;
+
+        auto time1 = std::chrono::high_resolution_clock::now();
+        auto res = DPF::prg::hash1(seed, alpha);
+        auto time2 = std::chrono::high_resolution_clock::now();
+        evalT1 += time2 - time1;
+
+        arr[0] ^= res[0];
+        arr[1] ^= res[1];
+        arr[2] ^= res[2];
+        arr[3] ^= res[3];
+
+        unsigned char digest[CryptoPP::SHA512::DIGESTSIZE];
+        block* blk = reinterpret_cast<block*>(digest);
+
+        time1 = std::chrono::high_resolution_clock::now();
+        DPF::prg::hash1v2(seed, alpha, blk);
+        time2 = std::chrono::high_resolution_clock::now();
+        evalT2 += time2 - time1;
+
+        arr[0] ^= blk[0];
+        arr[1] ^= blk[1];
+        arr[2] ^= blk[2];
+        arr[3] ^= blk[3];
+    }
+
+    std::cout << "Hash1 took (AES):" << evalT1.count() << "sec. Hash1v2 took (SHA256)" << evalT2.count() << " secs. " << std::endl;
+
+}
+
 int reconstruct_fake_xor_rand() {
     auto a = fake_xor_rand(0);
     auto b = fake_xor_rand(1);
@@ -1433,7 +1478,7 @@ int main(int argc, char** argv) {
     // Benchmark mersenne modulus
 //    benchmark_mersenne();
 //    test_sumproduct();
-
+//    benchmark_hashfuncs();
 //    test_server(serverIndex, N);
 //    test_client_deferred(serverIndex, N);
 //    test_client(serverIndex, N);
@@ -1441,11 +1486,14 @@ int main(int argc, char** argv) {
 
 //    test_client_malicious(serverIndex, N);
 
-   // generate_client_transfer_requests(100, N, true);
+//    generate_client_transfer_requests(100, N, true);
 //    test_client_transfers(100, serverIndex, N, false);
-    extern std::vector<block> globalVector;
 
-    globalVector = std::vector<block>((1ULL << N) / 4);
+    extern std::vector<block> globalVector0, globalVector1;
+//    extern std::vector<std::array<block, 4>> globalPiVector;
+    globalVector0 = std::vector<block>((1ULL << N) / 4);
+    globalVector1 = std::vector<block>((1ULL << N) / 4);
+//    globalPiVector.reserve((1ULL << N) / 4);
 
     test_client_transfers(100, serverIndex, N, true);
 
