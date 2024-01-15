@@ -33,7 +33,9 @@ const std::map<std::string, int> ALL_BENCHMARKS = {
         {"balance", 6},
         {"balanceMalicious", 7},
         {"transfer", 8},
-        {"transferMalicious", 9}
+        {"transferMalicious", 9},
+        {"read", 10},
+        {"write", 11}
 };
 const std::vector<std::string> BENCHMARK_NAMES = {
         "DPF.Gen",
@@ -45,7 +47,9 @@ const std::vector<std::string> BENCHMARK_NAMES = {
         "balance",
         "balanceMalicious",
         "transfer",
-        "transferMalicious"
+        "transferMalicious",
+        "read",
+        "write"
 };
 
 // Some fake rands to test

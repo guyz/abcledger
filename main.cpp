@@ -676,6 +676,12 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
                                          request.one1, request.one2, vms);
 //                std::cout << "transferMalicious" << std::endl;
                 break;
+            case 10:
+                server->read(request.kmsA1_i, vms);
+                break;
+            case 11:
+                server->write(request.kmsA_i, vms);
+                break;
             default:
                 std::cout << "No such benchmark" << std::endl;
                 return evalT;

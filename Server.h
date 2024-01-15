@@ -47,6 +47,13 @@ public:
 
     uint32_t balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey, uint32_t tag_share,
                               field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms);
+
+    // ORAM (Essentially PIR and PIRW. No further checks)
+    // Note: read and write also work with malicious servers because we have redundancy. Also no server-to-server communication!
+    // The last part is important and should go in a table comparing the schemes
+    uint32_t read(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms);
+    void write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms);
+
     void closeConnections();
 
     std::vector<uint32_t> ledger;

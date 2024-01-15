@@ -1631,3 +1631,35 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     }
 
 }
+
+// ORAM below
+uint32_t Server::read(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms) {
+    auto future_res_A1 = std::async(std::launch::async, [&]() {
+        return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
+    });
+
+    auto res_A1 = future_res_A1.get();
+
+    auto &data_A1 = vms[0];
+
+    auto future_balance = std::async(std::launch::async, [&] {
+        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+    });
+
+    field balance = future_balance.get();
+
+    return balance;
+}
+
+void Server::write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms) {
+
+    auto future_res_A = std::async(std::launch::async, [&](){
+        return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
+    });
+
+    // Getting the results (this will wait for the thread to finish if it hasn't yet)
+    auto res_A = future_res_A.get();
+
+    auto& data_A = vms[0];
+    ledger = PIRW::subvff31(ledger, data_A);
+}
