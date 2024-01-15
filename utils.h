@@ -15,7 +15,7 @@
 #include <map>
 #include <sstream>
 
-const std::string DATA_DIR = "/home/azureuser/work/data/";
+const std::string DATA_DIR = "/home/azureuser/work/data/"; // TODO: generalize this
 const int OTHER_PRIME = 4294967111;
 const int PP = 2147483647;
 const uint64_t MODINV2 = 1073741824;

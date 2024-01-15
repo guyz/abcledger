@@ -223,10 +223,6 @@ bool fileExists(const std::string& fileName) {
 }
 
 
-void client_send() {
-
-}
-
 // Function to compare two DeferredKeyShare objects for equality
 bool areEqual(const DPF::DeferredKeyShare& dks1, const DPF::DeferredKeyShare& dks2) {
     return (dks1.key == dks2.key) &&
@@ -596,7 +592,8 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 }
 
 // Runs a single set of benchmarks
-std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms) {
+std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms, int logN) {
+    int N = 1 << logN;
     std::chrono::duration<double> evalT;
     evalT = std::chrono::duration<double>::zero();
     std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << std::endl;
@@ -605,25 +602,58 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
 //        std::cout << "Running benchmark number: " << i << std::endl;
 
+        // Before timing, need to prep data
+        int alpha, beta;
+        std::pair<std::vector<uint8_t>, std::vector<uint8_t>> dpfkeys;
+        std::vector<std::vector<DPF::KeyShare>> shamirkeys;
+        if (benchmark == 0 || benchmark == 2 || benchmark == 4) {
+            alpha = rand() % (N - 1); // 22;
+            // Generate a random number between 1 and 2^30
+            beta = rand() % (1 << 16) + 1; // 25;
+        } else if (benchmark == 1 || benchmark == 3 || benchmark == 5) {
+            alpha = rand() % (N - 1); // 22;
+            // Generate a random number between 1 and 2^30
+            beta = rand() % (1 << 16) + 1; // 25;
+
+            if (benchmark == 1) {
+                dpfkeys = DPF::GenM(alpha, logN, beta);
+            }
+
+            if (benchmark == 3) {
+                shamirkeys = DPF::GenShamir(alpha, logN, beta, false);
+            }
+
+            if (benchmark == 5) {
+                shamirkeys = DPF::GenShamir(alpha, logN, beta, true);
+            }
+
+        }
+
         auto time1 = std::chrono::high_resolution_clock::now();
         switch (benchmark) {
             case 0:
-                std::cout << "DPF.Gen benchmark" << std::endl;
+                DPF::GenM(alpha, logN, beta);
+//                std::cout << "DPF.Gen benchmark" << std::endl;
                 break;
             case 1:
-                std::cout << "DPF.EvalAll" << std::endl;
+                DPF::EvalFull8M(dpfkeys.first, vms[0], logN);
+//                std::cout << "DPF.EvalAll" << std::endl;
                 break;
             case 2:
-                std::cout << "ShamirDPF.Gen" << std::endl;
+                DPF::GenShamir(alpha, logN, beta, false);
+//                std::cout << "ShamirDPF.Gen" << std::endl;
                 break;
             case 3:
-                std::cout << "ShamirDPF.EvalAll" << std::endl;
+                DPF::EvalShamir(shamirkeys[0], vms[0], vms[1], logN, 0, false);
+//                std::cout << "ShamirDPF.EvalAll" << std::endl;
                 break;
             case 4:
-                std::cout << "VerShamirDPF.Gen" << std::endl;
+                DPF::GenShamir(alpha, logN, beta, true);
+//                std::cout << "VerShamirDPF.Gen" << std::endl;
                 break;
             case 5:
-                std::cout << "VerShamirDPF.EvalAll" << std::endl;
+                DPF::EvalShamir(shamirkeys[0], vms[0], vms[1], logN, 0, true);
+//                std::cout << "VerShamirDPF.EvalAll" << std::endl;
                 break;
             case 6:
                 server->balance(request.kmsA1_i, request.tag_A1_share, vms);
@@ -691,7 +721,7 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
         benchmark += 1;
     }
 
-    auto evalT = handleBenchmark(&server, serverIndex, idx_start, idx_end, benchmark, vms);
+    auto evalT = handleBenchmark(&server, serverIndex, idx_start, idx_end, benchmark, vms, logN);
     auto func = "getBalances";
     if (isTransfer) {
         func = "transfers";
@@ -1103,6 +1133,29 @@ void test_dpf_single_eval(int logN) {
 
 }
 
+void appendToCSV(const std::string& benchmarkName, int serverIndex, int logN, int nBenchmarks, double benchmarkTime) {
+    std::string filename = DATA_DIR + "benchmark_results" + std::to_string(serverIndex) + ".csv";
+    bool exists = fileExists(filename);
+
+    // Open file in append mode if it exists, otherwise in write mode
+    std::ofstream file(filename, exists ? std::ofstream::app : std::ofstream::out);
+
+    if (!file.is_open()) {
+        std::cerr << "Unable to open file: " << filename << std::endl;
+        return;
+    }
+
+    // If file did not exist, write the header
+    if (!exists) {
+        file << "Benchmark Name, Log DB size, # Benchmarks, Single Benchmark Time\n";
+    }
+
+    // Append the new record
+    file << benchmarkName << ", " << logN << ", " << nBenchmarks << ", " << benchmarkTime << "\n";
+
+    file.close();
+}
+
 void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int logN, bool generateData = true, int nBenchmarks = 300) {
     int N = 1 << logN;
 
@@ -1145,15 +1198,19 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
     }
 
     for (auto benchmark : benchmarksToRun) {
-        auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms);
+        auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms, logN);
 
         // TODO: write to a CSV file:
-        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << evalT.count() << "sec. Each iteration took: " << evalT.count()/nBenchmarks << " secs. " << std::endl;
-        // Benchmark Name, DB size, # Benchmarks, Single Benchmark Time
+        auto evalT_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(evalT);
+        double benchmarkTime = evalT_milliseconds.count();
+        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << benchmarkTime << "ms. Each iteration took: " << evalT.count()/nBenchmarks << " ms. " << std::endl;
+        appendToCSV(BENCHMARK_NAMES[benchmark], serverIndex, logN, nBenchmarks, benchmarkTime/nBenchmarks);
     }
 
-    server->closeConnections();
-    delete server;
+    if (networkBenchmarks) {
+        server->closeConnections();
+        delete server;
+    }
     std::cout << "Finished running all benchmarks!" << std::endl;
 }
 
@@ -1169,6 +1226,7 @@ int main(int argc, char** argv) {
         for (auto benchmarkName : BENCHMARK_NAMES) {
             std::cout << benchmarkName << std::endl;
         }
+        std::cout << "An alternative to run only DPF tests (local) is to set benchmark1 = local. In this case, all DPF benchmarks will run from logN = 10 and up to log_tree_size" << std::endl;
 
         return -1;
     }
@@ -1176,9 +1234,15 @@ int main(int argc, char** argv) {
     int serverIndex = std::atoi(argv[1]);
 
     std::vector<std::string> benchmarks;
-
-    for (int i = 3; i < argc; ++i) {
-        benchmarks.push_back(argv[i]);
+    bool isLocal = std::strcmp(argv[3], "local") == 0;
+    if (isLocal) {
+        for (int i = 0; i < 6; i++) {
+            benchmarks.push_back(BENCHMARK_NAMES[i]);
+        }
+    } else {
+        for (int i = 3; i < argc; ++i) {
+            benchmarks.push_back(argv[i]);
+        }
     }
 
     // Pre-processing and memory allocation
@@ -1217,9 +1281,19 @@ int main(int argc, char** argv) {
 //    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 ////    test_client_transfers(56, serverIndex, N, true, true);
 
-    bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
     int nBenchmarks = 100; // How many iterations to run for each benchmark
-    benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
+
+    if (isLocal) {
+        // Run all local tests
+        for (int i = 10; i < N + 1; i++) {
+            std::cout << "Running local benchmarks for logN = " << i << std::endl;
+            benchmark_suite(benchmarks, serverIndex, i, false, nBenchmarks);
+        }
+    } else {
+        bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
+        benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
+    }
+
 
     return 0;
 }
