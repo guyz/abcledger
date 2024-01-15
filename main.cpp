@@ -599,7 +599,7 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms) {
     std::chrono::duration<double> evalT;
     evalT = std::chrono::duration<double>::zero();
-    std::cout << "Running benchmark category: " << benchmark << std::endl;
+    std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << std::endl;
 
     for (int i = idx_start; i < idx_end; i++) {
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
@@ -1105,30 +1105,6 @@ void test_dpf_single_eval(int logN) {
 
 void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int logN, bool generateData = true, int nBenchmarks = 300) {
     int N = 1 << logN;
-    std::map<std::string, int> allBenchmarks = {
-            {"DPF.Gen", 0},
-            {"DPF.EvalAll", 1},
-            {"ShamirDPF.Gen", 2},
-            {"ShamirDPF.EvalAll", 3},
-            {"VerShamirDPF.Gen", 4},
-            {"VerShamirDPF.EvalAll", 5},
-            {"balance", 6},
-            {"balanceMalicious", 7},
-            {"transfer", 8},
-            {"transferMalicious", 9}
-    };
-    std::vector<std::string> benchmarkNames = {
-            "DPF.Gen",
-            "DPF.EvalAll",
-            "ShamirDPF.Gen",
-            "ShamirDPF.EvalAll",
-            "VerShamirDPF.Gen",
-            "VerShamirDPF.EvalAll",
-            "balance",
-            "balanceMalicious",
-            "transfer",
-            "transferMalicious"
-    };
 
     // Vector to store the corresponding values
     std::vector<int> benchmarksToRun;
@@ -1137,9 +1113,9 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
     // Loop over the string vector
     for (const std::string& key : benchmarks) {
         // Check if the key exists in the map
-        if (allBenchmarks.find(key) != allBenchmarks.end()) {
+        if (ALL_BENCHMARKS.find(key) != ALL_BENCHMARKS.end()) {
             // Add the corresponding value to the values vector
-            int b = allBenchmarks[key];
+            int b = ALL_BENCHMARKS.at(key);
             if (b > 5) {
                 networkBenchmarks = true;
             }
@@ -1151,7 +1127,10 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
     }
 
     if (networkBenchmarks && generateData) {
-        generate_client_transfer_requests(100, N, true);
+        if (serverIndex == 0) {
+            // Single dealer
+            generate_client_transfer_requests(nBenchmarks, logN, true);
+        }
     }
 
     Server* server;
@@ -1169,7 +1148,7 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms);
 
         // TODO: write to a CSV file:
-        std::cout << "Benchmark: " << benchmarkNames[benchmark] << " took overall: " << evalT.count() << "sec. Each iteration took: " << evalT.count()/nBenchmarks << " secs. " << std::endl;
+        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << evalT.count() << "sec. Each iteration took: " << evalT.count()/nBenchmarks << " secs. " << std::endl;
         // Benchmark Name, DB size, # Benchmarks, Single Benchmark Time
     }
 
@@ -1184,19 +1163,33 @@ int main(int argc, char** argv) {
               << std::filesystem::current_path()
               << std::endl;
 
-    if(argc != 3) {
-	    std::cout << "Usage: ./dpf_pir <server_index> <log_tree_size>" << std::endl;
+    if(argc < 4) {
+	    std::cout << "Usage: ./prioram <server_index> <log_tree_size> <benchmark1>, <benchmark2>..." << std::endl;
+        std::cout << "List of Available Benchmarks:" << std::endl;
+        for (auto benchmarkName : BENCHMARK_NAMES) {
+            std::cout << benchmarkName << std::endl;
+        }
+
         return -1;
     }
     size_t N = std::strtoull(argv[2], nullptr, 10);
     int serverIndex = std::atoi(argv[1]);
 
+    std::vector<std::string> benchmarks;
 
+    for (int i = 3; i < argc; ++i) {
+        benchmarks.push_back(argv[i]);
+    }
+
+    // Pre-processing and memory allocation
     generate_tables();
     generate_random_sharings(100000, PP, 123);
 
-//    print_fake_block_sharing();
+    extern std::vector<block> globalVector0, globalVector1;
+    globalVector0 = std::vector<block>((1ULL << N) / 4);
+    globalVector1 = std::vector<block>((1ULL << N) / 4);
 
+//    print_fake_block_sharing();
 //    testSerialization();
 //    print_fake_zero_triplets_code();
 //    test_shamir_gf256();
@@ -1215,21 +1208,18 @@ int main(int argc, char** argv) {
 //    test_server(serverIndex, N);
 //    test_client_deferred(serverIndex, N);
 //    test_client(serverIndex, N);
-
-
 //    test_client_malicious(serverIndex, N);
-
 //    generate_client_transfer_requests(100, N, true);
 //    test_client_transfers(100, serverIndex, N, false);
 
-    extern std::vector<block> globalVector0, globalVector1;
-    globalVector0 = std::vector<block>((1ULL << N) / 4);
-    globalVector1 = std::vector<block>((1ULL << N) / 4);
+//    bool isTransfer = true;
+//    bool isMalicious = true;
+//    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
+////    test_client_transfers(56, serverIndex, N, true, true);
 
-    bool isTransfer = true;
-    bool isMalicious = true;
-    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
+    bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
+    int nBenchmarks = 100; // How many iterations to run for each benchmark
+    benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
 
-//    test_client_transfers(56, serverIndex, N, true, true);
     return 0;
 }

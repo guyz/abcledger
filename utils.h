@@ -12,7 +12,7 @@
 #include "Defines.h"
 #include <fstream>
 #include <filesystem>
-
+#include <map>
 #include <sstream>
 
 const std::string DATA_DIR = "/home/azureuser/work/data/";
@@ -22,6 +22,31 @@ const uint64_t MODINV2 = 1073741824;
 const uint64_t MODINV3 = 1431655765;
 const field MAX_VALID_INT = 536870912; // TODO: may want to change it when moving to 64bit..
 const int N_THREADS = 2;
+
+const std::map<std::string, int> ALL_BENCHMARKS = {
+        {"DPF.Gen", 0},
+        {"DPF.EvalAll", 1},
+        {"ShamirDPF.Gen", 2},
+        {"ShamirDPF.EvalAll", 3},
+        {"VerShamirDPF.Gen", 4},
+        {"VerShamirDPF.EvalAll", 5},
+        {"balance", 6},
+        {"balanceMalicious", 7},
+        {"transfer", 8},
+        {"transferMalicious", 9}
+};
+const std::vector<std::string> BENCHMARK_NAMES = {
+        "DPF.Gen",
+        "DPF.EvalAll",
+        "ShamirDPF.Gen",
+        "ShamirDPF.EvalAll",
+        "VerShamirDPF.Gen",
+        "VerShamirDPF.EvalAll",
+        "balance",
+        "balanceMalicious",
+        "transfer",
+        "transferMalicious"
+};
 
 // Some fake rands to test
 const std::vector<std::vector<uint8_t>> XORRAND0 = {{73, 146, 219}, {57, 114, 75}, {66, 132, 198}, {248, 237, 21}, {2, 4, 6}, {7, 14, 9}, {35, 70, 101}, {1, 2, 3}, {218, 169, 115}, {202, 137, 67}, {190, 97, 223}, {148, 53, 161}, {164, 85, 241}, {142, 1, 143}, {42, 84, 126}, {174, 65, 239}};
