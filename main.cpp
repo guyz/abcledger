@@ -595,15 +595,78 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
     }
 }
 
+// Runs a single set of benchmarks
+std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms) {
+    std::chrono::duration<double> evalT;
+    evalT = std::chrono::duration<double>::zero();
+    std::cout << "Running benchmark category: " << benchmark << std::endl;
+
+    for (int i = idx_start; i < idx_end; i++) {
+        ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
+//        std::cout << "Running benchmark number: " << i << std::endl;
+
+        auto time1 = std::chrono::high_resolution_clock::now();
+        switch (benchmark) {
+            case 0:
+                std::cout << "DPF.Gen benchmark" << std::endl;
+                break;
+            case 1:
+                std::cout << "DPF.EvalAll" << std::endl;
+                break;
+            case 2:
+                std::cout << "ShamirDPF.Gen" << std::endl;
+                break;
+            case 3:
+                std::cout << "ShamirDPF.EvalAll" << std::endl;
+                break;
+            case 4:
+                std::cout << "VerShamirDPF.Gen" << std::endl;
+                break;
+            case 5:
+                std::cout << "VerShamirDPF.EvalAll" << std::endl;
+                break;
+            case 6:
+                server->balance(request.kmsA1_i, request.tag_A1_share, vms);
+//                std::cout << "balance" << std::endl;
+                break;
+            case 7:
+                server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
+                                        request.one1, request.one2, vms);
+//                std::cout << "balanceMalicious" << std::endl;
+                break;
+            case 8:
+                server->transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
+                                request.tag_A1_share, vms);
+//                std::cout << "transfer" << std::endl;
+                break;
+            case 9:
+                server->transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
+                                         request.kmsB_i, request.tag_A_share, request.tag_A1_share,
+                                         request.beta0, request.beta1, request.beta2, request.one0,
+                                         request.one1, request.one2, vms);
+//                std::cout << "transferMalicious" << std::endl;
+                break;
+            default:
+                std::cout << "No such benchmark" << std::endl;
+                return evalT;
+        }
+        auto time2 = std::chrono::high_resolution_clock::now();
+
+        if (i > idx_start + 5) {
+            // first 5 runs are warmups
+            evalT += time2 - time1;
+        }
+
+    }
+
+    return evalT;
+}
+
 // Runs many client transfers
 // Assumes generate_client_transfer_requests() was called with at least nRequests and the same logN
 void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMalicious, bool isTransfer = true, bool specificIndex = false) {
     int N = 1 << logN;
     Server server(serverIndex, N);
-    std::chrono::duration<double> evalT1;
-    evalT1 = std::chrono::duration<double>::zero();
-
-    // Benchmark a single execution of Gen
 
     int idx_start = 0;
     int idx_end = nRequests;
@@ -619,45 +682,21 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
         vms[i] = std::vector<uint32_t>((1ULL<< logN));
     }
 
-    for (int i = idx_start; i < idx_end; i++) {
-        ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
-//        std::cout << "Running transfer " << i << std::endl;
-        if (!isMalicious) {
-            // Test semi-honest
-            auto time1 = std::chrono::high_resolution_clock::now();
-            if (isTransfer) {
-                server.transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
-                                request.tag_A1_share, vms);
-            } else {
-                server.balance(request.kmsA1_i, request.tag_A1_share, vms);
-            }
-            auto time2 = std::chrono::high_resolution_clock::now();
-            evalT1 += time2 - time1;
-        } else {
-            // Test malicious
-            auto time1 = std::chrono::high_resolution_clock::now();
-            if (isTransfer) {
-                server.transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
-                                         request.kmsB_i, request.tag_A_share, request.tag_A1_share,
-                                         request.beta0, request.beta1, request.beta2, request.one0,
-                                         request.one1, request.one2, vms);
-            } else {
-                server.balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
-                                        request.one1, request.one2, vms);
-            }
-            auto time2 = std::chrono::high_resolution_clock::now();
-            // first run needs a warmup, so let's just ignore it
-            if (i != 0) {
-                evalT1 += time2 - time1;
-            }
-        }
+    int benchmark = 6;
+    if (isTransfer) {
+        benchmark = 8;
     }
 
+    if (isMalicious) {
+        benchmark += 1;
+    }
+
+    auto evalT = handleBenchmark(&server, serverIndex, idx_start, idx_end, benchmark, vms);
     auto func = "getBalances";
     if (isTransfer) {
         func = "transfers";
     }
-    std::cout << "Client " << func << " (malicious=" << isMalicious << ") took overall: " << evalT1.count() << "sec. Each iteration took: " << evalT1.count()/(idx_end-idx_start) << " secs. " << std::endl;
+    std::cout << "Client " << func << " (malicious=" << isMalicious << ") took overall: " << evalT.count() << "sec. Each iteration took: " << evalT.count()/(idx_end-idx_start) << " secs. " << std::endl;
 
     server.closeConnections();
 }
@@ -1064,45 +1103,8 @@ void test_dpf_single_eval(int logN) {
 
 }
 
-void handleBenchmark(int benchmark) {
-    switch (benchmark) {
-        case 0:
-            std::cout << "Benchmark is 0" << std::endl;
-            break;
-        case 1:
-            std::cout << "Benchmark is 1" << std::endl;
-            break;
-        case 2:
-            std::cout << "Benchmark is 2" << std::endl;
-            break;
-        case 3:
-            std::cout << "Benchmark is 3" << std::endl;
-            break;
-        case 4:
-            std::cout << "Benchmark is 4" << std::endl;
-            break;
-        case 5:
-            std::cout << "Benchmark is 5" << std::endl;
-            break;
-        case 6:
-            std::cout << "Benchmark is 6" << std::endl;
-            break;
-        case 7:
-            std::cout << "Benchmark is 7" << std::endl;
-            break;
-        case 8:
-            std::cout << "Benchmark is 8" << std::endl;
-            break;
-        case 9:
-            std::cout << "Benchmark is 9" << std::endl;
-            break;
-        default:
-            std::cout << "Benchmark is out of range (0-9)" << std::endl;
-            break;
-    }
-}
-
-void benchmark_suite(std::vector<std::string>& benchmarks) {
+void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int logN, bool generateData = true, int nBenchmarks = 300) {
+    int N = 1 << logN;
     std::map<std::string, int> allBenchmarks = {
             {"DPF.Gen", 0},
             {"DPF.EvalAll", 1},
@@ -1115,27 +1117,65 @@ void benchmark_suite(std::vector<std::string>& benchmarks) {
             {"transfer", 8},
             {"transferMalicious", 9}
     };
+    std::vector<std::string> benchmarkNames = {
+            "DPF.Gen",
+            "DPF.EvalAll",
+            "ShamirDPF.Gen",
+            "ShamirDPF.EvalAll",
+            "VerShamirDPF.Gen",
+            "VerShamirDPF.EvalAll",
+            "balance",
+            "balanceMalicious",
+            "transfer",
+            "transferMalicious"
+    };
 
     // Vector to store the corresponding values
     std::vector<int> benchmarksToRun;
+    bool networkBenchmarks = false;
 
     // Loop over the string vector
     for (const std::string& key : benchmarks) {
         // Check if the key exists in the map
         if (allBenchmarks.find(key) != allBenchmarks.end()) {
             // Add the corresponding value to the values vector
-            benchmarksToRun.push_back(allBenchmarks[key]);
+            int b = allBenchmarks[key];
+            if (b > 5) {
+                networkBenchmarks = true;
+            }
+            benchmarksToRun.push_back(b);
         } else {
             // If the key is not found, you might want to handle this case
             std::cout << "Key '" << key << "' not found in the map." << std::endl;
         }
     }
 
-    for (auto benchmark : benchmarksToRun) {
-        handleBenchmark(benchmark);
+    if (networkBenchmarks && generateData) {
+        generate_client_transfer_requests(100, N, true);
     }
 
-    std::cout << "finished running all benchmarks!" << std::endl;
+    Server* server;
+    if (networkBenchmarks) {
+        server = new Server(serverIndex, N);
+    }
+
+    // Generating the underlying vectors..
+    std::array<std::vector<uint32_t>, 10> vms;
+    for (int i = 0; i < 10; i++) {
+        vms[i] = std::vector<uint32_t>((1ULL<< logN));
+    }
+
+    for (auto benchmark : benchmarksToRun) {
+        auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms);
+
+        // TODO: write to a CSV file:
+        std::cout << "Benchmark: " << benchmarkNames[benchmark] << " took overall: " << evalT.count() << "sec. Each iteration took: " << evalT.count()/nBenchmarks << " secs. " << std::endl;
+        // Benchmark Name, DB size, # Benchmarks, Single Benchmark Time
+    }
+
+    server->closeConnections();
+    delete server;
+    std::cout << "Finished running all benchmarks!" << std::endl;
 }
 
 
@@ -1151,10 +1191,6 @@ int main(int argc, char** argv) {
     size_t N = std::strtoull(argv[2], nullptr, 10);
     int serverIndex = std::atoi(argv[1]);
 
-    //    extern DPF::HackyVectorAllocator allocator;
-    //
-    //    allocator = DPF::HackyVectorAllocator();
-    //    allocator.init(3000, N);
 
     generate_tables();
     generate_random_sharings(100000, PP, 123);
