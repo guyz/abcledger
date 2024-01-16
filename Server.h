@@ -52,7 +52,8 @@ public:
     // Note: read and write also work with malicious servers because we have redundancy. Also no server-to-server communication!
     // The last part is important and should go in a table comparing the schemes
     uint32_t read(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms);
-    void write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms);
+//    void write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms);
+    std::vector<uint32_t> write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms);
 
     void closeConnections();
 

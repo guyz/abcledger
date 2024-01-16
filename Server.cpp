@@ -1647,11 +1647,11 @@ uint32_t Server::read(const std::vector<DPF::KeyShare>& key, std::array<std::vec
     });
 
     field balance = future_balance.get();
-
+    std::cout << "balance: " << balance << std::endl;
     return balance;
 }
 
-void Server::write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms) {
+std::vector<uint32_t> Server::write(const std::vector<DPF::KeyShare>& key, std::array<std::vector<uint32_t>, 10>& vms) {
 
     auto future_res_A = std::async(std::launch::async, [&](){
         return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
@@ -1659,7 +1659,8 @@ void Server::write(const std::vector<DPF::KeyShare>& key, std::array<std::vector
 
     // Getting the results (this will wait for the thread to finish if it hasn't yet)
     auto res_A = future_res_A.get();
-
     auto& data_A = vms[0];
-    ledger = PIRW::subvff31(ledger, data_A);
+    //    ledger = PIRW::subvff31(ledger, data_A); // This is more efficient, but also don't want the optimizer to cheat when benchmarking and opt this out
+    auto res = PIRW::subvff31(ledger, data_A);
+    return std::move(res);
 }

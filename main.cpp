@@ -594,9 +594,13 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 // Runs a single set of benchmarks
 std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms, int logN) {
     int N = 1 << logN;
+    std::cout << "Running this benchmark for N = " << N << std::endl;
+    std::ofstream readFile(DATA_DIR + "reads" + std::to_string(serverIndex + 1) + ".txt"); // prevents compiler optimizing out
+    std::ofstream writeFile(DATA_DIR + "writes" + std::to_string(serverIndex + 1) + ".txt"); // prevents compiler optimizing out
+    std::vector<uint32_t> writeVec(N); // prevents optimizing out.
     std::chrono::duration<double> evalT;
     evalT = std::chrono::duration<double>::zero();
-    std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << std::endl;
+    std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << " with idx_start = " << idx_start << " and idx_end = " << idx_end << std::endl;
 
     for (int i = idx_start; i < idx_end; i++) {
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
@@ -630,63 +634,92 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
         }
 
         auto time1 = std::chrono::high_resolution_clock::now();
+        auto time2 = std::chrono::high_resolution_clock::now();
+        uint32_t v;
         switch (benchmark) {
             case 0:
+                time1 = std::chrono::high_resolution_clock::now();
                 DPF::GenM(alpha, logN, beta);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "DPF.Gen benchmark" << std::endl;
                 break;
             case 1:
+                time1 = std::chrono::high_resolution_clock::now();
                 DPF::EvalFull8M(dpfkeys.first, vms[0], logN);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "DPF.EvalAll" << std::endl;
                 break;
             case 2:
+                time1 = std::chrono::high_resolution_clock::now();
                 DPF::GenShamir(alpha, logN, beta, false);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "ShamirDPF.Gen" << std::endl;
                 break;
             case 3:
+                time1 = std::chrono::high_resolution_clock::now();
                 DPF::EvalShamir(shamirkeys[0], vms[0], vms[1], logN, 0, false);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "ShamirDPF.EvalAll" << std::endl;
                 break;
             case 4:
+                time1 = std::chrono::high_resolution_clock::now();
                 DPF::GenShamir(alpha, logN, beta, true);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "VerShamirDPF.Gen" << std::endl;
                 break;
             case 5:
+                time1 = std::chrono::high_resolution_clock::now();
                 DPF::EvalShamir(shamirkeys[0], vms[0], vms[1], logN, 0, true);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "VerShamirDPF.EvalAll" << std::endl;
                 break;
             case 6:
+                time1 = std::chrono::high_resolution_clock::now();
                 server->balance(request.kmsA1_i, request.tag_A1_share, vms);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balance" << std::endl;
                 break;
             case 7:
+                time1 = std::chrono::high_resolution_clock::now();
                 server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
                                         request.one1, request.one2, vms);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balanceMalicious" << std::endl;
                 break;
             case 8:
+                time1 = std::chrono::high_resolution_clock::now();
                 server->transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
                                 request.tag_A1_share, vms);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transfer" << std::endl;
                 break;
             case 9:
+                time1 = std::chrono::high_resolution_clock::now();
                 server->transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
                                          request.kmsB_i, request.tag_A_share, request.tag_A1_share,
                                          request.beta0, request.beta1, request.beta2, request.one0,
                                          request.one1, request.one2, vms);
+                time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transferMalicious" << std::endl;
                 break;
             case 10:
-                server->read(request.kmsA1_i, vms);
+                time1 = std::chrono::high_resolution_clock::now();
+                v = server->read(request.kmsA1_i, vms);
+                time2 = std::chrono::high_resolution_clock::now();
+                readFile << v << "\n";
                 break;
             case 11:
-                server->write(request.kmsA_i, vms);
+                time1 = std::chrono::high_resolution_clock::now();
+                writeVec = server->write(request.kmsA_i, vms);
+                time2 = std::chrono::high_resolution_clock::now();
+                for (int j = 0; j < writeVec.size(); j++) {
+                    writeFile << writeVec[j] << "\n";
+                }
                 break;
             default:
                 std::cout << "No such benchmark" << std::endl;
                 return evalT;
         }
-        auto time2 = std::chrono::high_resolution_clock::now();
 
         if (i > idx_start + 5) {
             // first 5 runs are warmups
@@ -695,6 +728,8 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
 
     }
 
+    readFile.close();
+    writeFile.close();
     return evalT;
 }
 
@@ -1209,8 +1244,9 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         // TODO: write to a CSV file:
         auto evalT_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(evalT);
         double benchmarkTime = evalT_milliseconds.count();
-        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << benchmarkTime << "ms. Each iteration took: " << evalT.count()/nBenchmarks << " ms. " << std::endl;
-        appendToCSV(BENCHMARK_NAMES[benchmark], serverIndex, logN, nBenchmarks, benchmarkTime/nBenchmarks);
+        double timePerIter = evalT.count()/(nBenchmarks - 5);
+        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << benchmarkTime << "ms. Each iteration took: " << timePerIter << " ms. " << std::endl;
+        appendToCSV(BENCHMARK_NAMES[benchmark], serverIndex, logN, nBenchmarks, timePerIter);
     }
 
     if (networkBenchmarks) {
@@ -1297,6 +1333,7 @@ int main(int argc, char** argv) {
         }
     } else {
         bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
+        std::cout << "Running benchmarks for logN = " << N << std::endl;
         benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
     }
 
