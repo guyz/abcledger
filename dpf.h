@@ -87,6 +87,10 @@ namespace DPF {
 
     std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> DeferredGenShamir(size_t alpha, size_t logn);
 
+    // Fast ORAM (increases the degree to 2
+    std::vector<std::vector<KeyShare>> GenFast(size_t alpha, size_t logn, uint32_t m);
+    int EvalFast(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, std::vector<uint32_t>& vm3, std::vector<uint32_t>& vm4, std::vector<uint32_t>& out, size_t logn, uint64_t party_index);
+
     namespace prg {
         std::array<block, 4> hash1(const block& seed, uint32_t x);
         std::array<block, 4> hash1v2(const block& seed, uint32_t x);

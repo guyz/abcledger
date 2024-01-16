@@ -1352,4 +1352,40 @@ namespace DPF {
 //        return std::make_pair(std::move(vm1), pi);
     }
 
+    std::vector<std::vector<KeyShare>>
+    GenFast(size_t alpha, size_t logn, uint32_t m) {
+        uint32_t alpha1, alpha2;
+        auto rowkeys = GenShamir(alpha1, logn/2, 1);
+        auto colkeys = GenShamir(alpha2, logn/2, m);
+
+        auto key_for_p1 = {rowkeys[0][0], rowkeys[0][1], colkeys[0][0], colkeys[0][1]};
+        auto key_for_p2 = {rowkeys[1][0], rowkeys[1][1], colkeys[1][0], colkeys[1][1]};
+        auto key_for_p3 = {rowkeys[2][0], rowkeys[2][1], colkeys[2][0], colkeys[2][1]};
+
+        return {key_for_p1, key_for_p2, key_for_p3};
+    }
+
+    int EvalFast(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, std::vector<uint32_t>& vm3, std::vector<uint32_t>& vm4, std::vector<uint32_t>& out, size_t logn, uint64_t party_index) {
+        auto future_res_rowkey= std::async(std::launch::async, [&](){
+            return DPF::EvalShamir({key[0], key[1]}, vm1, vm2, logn/2, party_index, false);
+        });
+
+        auto future_res_colkey = std::async(std::launch::async, [&](){
+            return DPF::EvalShamir({key[2], key[3]}, vm3, vm4, logn/2, party_index, false);
+        });
+
+        // Getting the results (this will wait for the thread to finish if it hasn't yet)
+        auto rows_status = future_res_rowkey.get();
+        auto cols_status = future_res_colkey.get();
+
+        // Expand the DPF into a vector
+        for (int i = 0; i < logn/2; i++) {
+            for (int j = 0; j < logn/2; j++) {
+                out[i*logn/2 + j] = mod((static_cast<uint64_t>(vm1[i]) * vm3[j]), PP);
+            }
+        }
+
+        return 1;
+    }
+
 }
