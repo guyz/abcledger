@@ -7,6 +7,7 @@
 #include <atomic>
 
 #include "Defines.h"
+#include "utils.h"
 #include <cryptopp/sha.h>
 
 
@@ -84,6 +85,10 @@ namespace DPF {
     std::vector<std::vector<KeyShare>>
     GenShamir(size_t alpha, size_t logn, uint32_t m, bool verifiable = false);
     int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm0, std::vector<uint32_t>& vm1, size_t logn, uint64_t party_index, bool verifiable = false);
+
+    std::vector<std::vector<KeyShare>>
+    GenShamirMulti(size_t alpha, size_t logn, uint32_t m, bool verifiable);
+    int EvalShamirMulti(const std::vector<KeyShare>& key, std::array<std::vector<uint32_t>, 2*N_SPLITS>& vms, std::vector<uint32_t>& out, size_t logn, uint64_t party_index, bool verifiable);
 
     std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> DeferredGenShamir(size_t alpha, size_t logn);
 

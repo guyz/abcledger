@@ -391,6 +391,81 @@ void test_client(int serverIndex, int logN) {
     std::cout << "Done" << std::endl;
 }
 
+void test_fastdpf(int logN) {
+    int N = 1 << logN;
+    int beta = 7;
+    int alpha = 254;
+
+    auto keys = DPF::GenFast(alpha, logN, beta);
+
+    // Generating the underlying vectors..
+    std::array<std::vector<uint32_t>, 4> vms;
+    std::array<std::vector<uint32_t>, 3> eval_vms;
+    for (int i = 0; i < 4; i++) {
+        vms[i] = std::vector<uint32_t>((1ULL<< logN/2));
+
+        if (i < 3) {
+            eval_vms[i] = std::vector<uint32_t>((1ULL<< logN));
+        }
+    }
+
+
+    DPF::EvalFast(keys[0], vms[0], vms[1], vms[2], vms[3], eval_vms[0], logN, 0);
+    DPF::EvalFast(keys[0], vms[0], vms[1], vms[2], vms[3], eval_vms[1], logN, 1);
+    DPF::EvalFast(keys[0], vms[0], vms[1], vms[2], vms[3], eval_vms[2], logN, 2);
+
+    for (int i = 0; i < N; i++) {
+        auto shares = encode_to_shares({
+                                           eval_vms[0][i],
+                                           eval_vms[1][i],
+                                           eval_vms[2][i]
+                                   });
+        auto v = recover_secret(shares, PP);
+        std::cout << "eval_vms[" << i << "]: " << eval_vms[0][i] << std::endl;
+        std::cout << "arr[" << i << "]: " << v << std::endl;
+    }
+}
+
+void test_splitdpf(int logN) {
+    int N = 1 << logN;
+    int beta = 7;
+    int alpha = 254;
+    int log2n_split = logN - static_cast<int>(std::log2(N_SPLITS));
+    int splitSize = N / N_SPLITS;
+
+    auto keys = DPF::GenShamirMulti(alpha, logN, beta, false);
+//    EvalShamirMulti(const std::vector<KeyShare>& key, std::array<std::vector<uint32_t>, N_SPLITS>& vms, std::vector<uint32_t>& out, size_t logn, uint64_t party_index, bool verifiable);
+
+    // Generating the underlying vectors..
+    std::array<std::vector<uint32_t>, 2*N_SPLITS> vms;
+    std::array<std::vector<uint32_t>, 3> eval_vms;
+    for (int i = 0; i < 4; i++) {
+        vms[i] = std::vector<uint32_t>(splitSize);
+
+        if (i < 3) {
+            eval_vms[i] = std::vector<uint32_t>((1ULL<< logN));
+        }
+    }
+
+    DPF::EvalShamirMulti(keys[0], vms, eval_vms[0], logN, 0, false);
+    DPF::EvalShamirMulti(keys[1], vms, eval_vms[1], logN, 1, false);
+    DPF::EvalShamirMulti(keys[2], vms, eval_vms[2], logN, 2, false);
+
+    for (int i = 0; i < N; i++) {
+        auto shares = encode_to_shares({
+                                               eval_vms[0][i],
+                                               eval_vms[1][i],
+                                               eval_vms[2][i]
+                                       });
+        auto v = recover_secret(shares, PP);
+//        std::cout << "eval_vms[" << i << "]: " << eval_vms[0][i] << std::endl;
+//        std::cout << "arr[" << i << "]: " << v << std::endl;
+        if (v != 0) {
+            std::cout << "arr[" << i << "]: " << v << std::endl;
+        }
+    }
+}
+
 void test_client_deferred(int serverIndex, int logN) {
     int N = 1 << logN;
     int amount = 7;
@@ -1322,8 +1397,11 @@ int main(int argc, char** argv) {
 //    bool isMalicious = true;
 //    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 ////    test_client_transfers(56, serverIndex, N, true, true);
+//    test_fastdpf(N);
+    test_splitdpf(N);
+    return 0;
 
-    int nBenchmarks = 100; // How many iterations to run for each benchmark
+    int nBenchmarks = 20; // How many iterations to run for each benchmark
 
     if (isLocal) {
         // Run all local tests
@@ -1332,7 +1410,7 @@ int main(int argc, char** argv) {
             benchmark_suite(benchmarks, serverIndex, i, false, nBenchmarks);
         }
     } else {
-        bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
+        bool generateData = false; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
         std::cout << "Running benchmarks for logN = " << N << std::endl;
         benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
     }

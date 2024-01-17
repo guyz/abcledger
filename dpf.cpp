@@ -1215,6 +1215,77 @@ namespace DPF {
         return {key_for_p1, key_for_p2, key_for_p3};
     }
 
+    std::vector<std::vector<KeyShare>>
+    GenShamirMulti(size_t alpha, size_t logn, uint32_t m, bool verifiable) {
+        // Create splits
+        int N = 1 << logn;
+        std::vector<std::vector<int>> result;
+        int log2n_split = logn - static_cast<int>(std::log2(N_SPLITS));
+        int nsplits = N_SPLITS;
+        int splitSize = N / nsplits;
+
+        std::vector<KeyShare> key_for_p1, key_for_p2, key_for_p3;
+        std::vector<std::vector<KeyShare>> splitkeys;
+        for (int i = 0; i < nsplits; i++) {
+//            std::cout << "alpha = " << alpha << ", i*splitSize = " << i*splitSize << ", (i+1)*splitSize = " << (i+1)*splitSize << ", log2n_split = " << log2n_split << std::endl;
+            if (alpha >= i*splitSize && alpha < (i+1)*splitSize) {
+                auto alpha_split = alpha - i*splitSize;
+//                std::cout << "alpha_split = " << alpha_split << ", i*splitSize = " << i*splitSize << ", (i+1)*splitSize = " << (i+1)*splitSize << ", log2n_split = " << log2n_split << std::endl;
+                splitkeys = GenShamir(alpha_split, log2n_split, m, verifiable);
+            } else {
+                splitkeys = GenShamir(0, log2n_split, 0, verifiable);
+            }
+
+            key_for_p1.push_back(splitkeys[0][0]);
+            key_for_p1.push_back(splitkeys[0][1]);
+
+            key_for_p2.push_back(splitkeys[1][0]);
+            key_for_p2.push_back(splitkeys[1][1]);
+
+            key_for_p3.push_back(splitkeys[2][0]);
+            key_for_p3.push_back(splitkeys[2][1]);
+        }
+
+        return {key_for_p1, key_for_p2, key_for_p3};
+    }
+
+    struct IndexedFuture {
+        IndexedFuture(std::future<int> future1, int i) {
+
+        }
+
+        std::future<int> future;
+        int index;
+    };
+
+    int EvalShamirMulti(const std::vector<KeyShare>& key, std::array<std::vector<uint32_t>, 2*N_SPLITS>& vms, std::vector<uint32_t>& out, size_t logn, uint64_t party_index, bool verifiable) {
+        int log2n_split = logn - static_cast<int>(std::log2(N_SPLITS));
+        int N = 1 << logn;
+        int splitSize = N / N_SPLITS;
+
+        // Parallel loop
+        std::vector<std::future<void>> futures;
+        for (int i = 0; i < 2*N_SPLITS; i += 2) {
+            futures.push_back(std::async(std::launch::async, [&key, &vms, i, log2n_split, party_index]() {
+                DPF::EvalShamir({key[i], key[i + 1]}, vms[i], vms[i + 1], log2n_split, party_index, false);
+            }));
+        }
+
+        // Wait for all futures to complete
+        for (auto& f : futures) {
+            f.get();
+        }
+
+        for (int index = 0; index < N_SPLITS; index ++) {
+            int curr_start = index*splitSize;
+//            std::cout << "index*2" << index*2 << ", vms.size()" << vms.size() << std::endl;
+//            std::cout << "Filling split #" << index << ", which starts at index = " << curr_start << ", and ends at index = " <<  (index + 1)*splitSize << ", and vms[index*2].size() = "  << vms[index*2].size() << std::endl;
+            out.insert(out.begin() + curr_start, vms[index*2].begin(), vms[index*2].end());
+        }
+
+        return 1;
+    }
+
     std::vector<std::vector<std::pair<uint8_t, uint8_t>>> share_seed_helper(block seed) {
         std::vector<std::vector<std::pair<uint8_t, uint8_t>>> res = {
                 {}, {}, {}
@@ -1352,9 +1423,27 @@ namespace DPF {
 //        return std::make_pair(std::move(vm1), pi);
     }
 
+    std::pair<uint32_t, uint32_t> calculate2dIndexes(uint32_t alpha, uint32_t N) {
+        // Compute the square root of N as a floating point value
+        double sqrtN = std::sqrt(static_cast<double>(N));
+
+        // Calculate m1 and m2
+        uint32_t alpha1 = static_cast<uint32_t>(std::ceil(alpha / sqrtN)) - 1;
+        uint32_t alpha2 = alpha % static_cast<uint32_t>(sqrtN);
+
+        // Return the pair of values
+        std::cout << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2 << std::endl;
+        return {alpha1, alpha2};
+    }
+
     std::vector<std::vector<KeyShare>>
     GenFast(size_t alpha, size_t logn, uint32_t m) {
+        int N = 1 << logn;
         uint32_t alpha1, alpha2;
+        auto alphas = calculate2dIndexes(alpha, N);
+        alpha1 = alphas.first;
+        alpha2 = alphas.second;
+        std::cout << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2 << std::endl;
         auto rowkeys = GenShamir(alpha1, logn/2, 1);
         auto colkeys = GenShamir(alpha2, logn/2, m);
 

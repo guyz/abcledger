@@ -21,7 +21,8 @@ const int PP = 2147483647;
 const uint64_t MODINV2 = 1073741824;
 const uint64_t MODINV3 = 1431655765;
 const field MAX_VALID_INT = 536870912; // TODO: may want to change it when moving to 64bit..
-const int N_THREADS = 2;
+const int N_THREADS = 8;
+const int N_SPLITS = 2;
 
 const std::map<std::string, int> ALL_BENCHMARKS = {
         {"DPF.Gen", 0},
