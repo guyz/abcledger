@@ -22,7 +22,7 @@ const uint64_t MODINV2 = 1073741824;
 const uint64_t MODINV3 = 1431655765;
 const field MAX_VALID_INT = 536870912; // TODO: may want to change it when moving to 64bit..
 const int N_THREADS = 8;
-const int N_SPLITS = 2;
+const int N_SPLITS = 8;
 
 const std::map<std::string, int> ALL_BENCHMARKS = {
         {"DPF.Gen", 0},
@@ -31,12 +31,14 @@ const std::map<std::string, int> ALL_BENCHMARKS = {
         {"ShamirDPF.EvalAll", 3},
         {"VerShamirDPF.Gen", 4},
         {"VerShamirDPF.EvalAll", 5},
-        {"balance", 6},
-        {"balanceMalicious", 7},
-        {"transfer", 8},
-        {"transferMalicious", 9},
-        {"read", 10},
-        {"write", 11}
+        {"ShamirDPFMulti.EvalAll", 6},
+        {"FastDPF.EvalAll", 7},
+        {"balance", 8},
+        {"balanceMalicious", 9},
+        {"transfer", 10},
+        {"transferMalicious", 11},
+        {"read", 12},
+        {"write", 13}
 };
 const std::vector<std::string> BENCHMARK_NAMES = {
         "DPF.Gen",
@@ -45,6 +47,8 @@ const std::vector<std::string> BENCHMARK_NAMES = {
         "ShamirDPF.EvalAll",
         "VerShamirDPF.Gen",
         "VerShamirDPF.EvalAll",
+        "ShamirDPFMulti.EvalAll",
+        "FastDPF.EvalAll",
         "balance",
         "balanceMalicious",
         "transfer",

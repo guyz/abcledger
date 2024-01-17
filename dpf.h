@@ -74,17 +74,20 @@ namespace DPF {
     void EvalFull8M(const std::vector<uint8_t>& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false);
 
     // New DPF constructions (Updated 2023)
-    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, bool pi_index);
+//    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, bool pi_index);
+    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, uint32_t* dataStart, uint32_t* dataEnd, bool pi_index);
 
     // (1,2)-DPF+
     std::pair<KeyShare, KeyShare>
     GenP(size_t alpha, size_t logn, uint32_t m1, uint32_t m2, bool verifiable = false);
     int EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
+    int EvalFull8P(const KeyShare& key, uint32_t* vm_start, uint32_t* vm_end, size_t logn, bool party_index, bool verifiable = false, bool pi_index = false);
 
     // (1,3)-SS-DPF
     std::vector<std::vector<KeyShare>>
     GenShamir(size_t alpha, size_t logn, uint32_t m, bool verifiable = false);
     int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm0, std::vector<uint32_t>& vm1, size_t logn, uint64_t party_index, bool verifiable = false);
+    int EvalShamir(const std::vector<KeyShare>& key, uint32_t* vm0_start, uint32_t* vm0_end, uint32_t* vm1_start, uint32_t* vm1_end, size_t logn, uint64_t party_index, bool verifiable = false);
 
     std::vector<std::vector<KeyShare>>
     GenShamirMulti(size_t alpha, size_t logn, uint32_t m, bool verifiable);

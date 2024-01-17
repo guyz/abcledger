@@ -715,14 +715,16 @@ namespace DPF {
     }
 
 //    std::pair<std::vector<uint32_t>, std::vector<block>>
-    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, std::vector<uint32_t>& data, bool pi_index) {
+    void EvalFull8M_helper(const std::vector<uint8_t>& key, size_t logn, bool party_index, bool verifiable, uint32_t* dataStart, uint32_t* dataEnd, bool pi_index) {
         assert(logn <= 63);
-        std::array<uint32_t*,8> data_ptrs{};
-        std::array<block*,8> data_ptrs_nodes{};
-        for(size_t i = 0; i < 8; i++) {
+        size_t dataSize = dataEnd - dataStart;
+        std::array<uint32_t*, 8> data_ptrs{};
+        std::array<block*, 8> data_ptrs_nodes{};
+        for (size_t i = 0; i < 8; i++) {
 //            data_ptrs[i] = &data[i*(1ULL << (logn - 3 - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
-            data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
 
+//            data_ptrs[i] = &data[i*(1ULL << (logn - 3))]; // since we start by running 8 subtrees, each data_ptr handles a single subtree. This is likely needed regardless how we condense the levels
+            data_ptrs[i] = dataStart + i * (dataSize / 8);
             if (verifiable) {
                 if (pi_index) {
                     data_ptrs_nodes[i] = &globalVector1[(i*(1ULL << (logn - 3)))/4];
@@ -877,7 +879,7 @@ namespace DPF {
     void EvalFull8M(const std::vector<uint8_t>& key, std::vector<uint32_t>& vm, size_t logn, bool party_index) {
 //        std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
 //        auto vm = allocator.allocate();
-        EvalFull8M_helper(key, logn, party_index, false, vm, false);
+        EvalFull8M_helper(key, logn, party_index, false, vm.data(), vm.data() + vm.size(), false);
 //        return std::move(vm);
     }
 
@@ -888,7 +890,7 @@ namespace DPF {
         // and using something like std::pmr (or another base memory allocator) would necessitate changes across the
         // entire code for the types to match. Afaik there's about 500ms here on the table, maybe more
         std::vector<uint32_t> vm = std::vector<uint32_t>((1ULL<< logn));
-        EvalFull8M_helper(key.key, logn, party_index, true, vm, pi_index);
+        EvalFull8M_helper(key.key, logn, party_index, true, vm.data(), vm.data() + vm.size(), pi_index);
 //        auto vm = res.first;
 //        auto nodes = res.second;
         std::array<block, 4> pi = key.cs;
@@ -1170,20 +1172,18 @@ namespace DPF {
     }
 
     int EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index, bool verifiable, bool pi_index) {
+        return EvalFull8P(key, vm.data(), vm.data() + vm.size(), logn, party_index, verifiable, pi_index);
+    }
+
+    int EvalFull8P(const KeyShare& key, uint32_t* vm_start, uint32_t* vm_end, size_t logn, bool party_index, bool verifiable, bool pi_index) {
         uint32_t z = key.z;
         std::array<block, 4> pi = key.cs;
 
-        EvalFull8M_helper(key.key, logn, party_index, verifiable, vm, pi_index);
+        EvalFull8M_helper(key.key, logn, party_index, verifiable, vm_start, vm_end, pi_index);
 
-//        if (verifiable) {
-//            vm = DPF::VerEvalFull8M(key, logn, party_index, pi_index);
-//        } else {
-//            vm = DPF::EvalFull8M(key.key, logn, party_index);
-//        }
-
-        // TODO: low priority - insert this into the recursive function instead of looping all values again. May help..
-        for (int i = 0; i < vm.size(); i++) {
-            vm[i] = z ^ vm[i];
+        size_t vm_size = vm_end - vm_start;
+        for (int i = 0; i < vm_size; i++) {
+            vm_start[i] = z ^ vm_start[i];
         }
 
         return 1;
@@ -1276,12 +1276,13 @@ namespace DPF {
             f.get();
         }
 
-        for (int index = 0; index < N_SPLITS; index ++) {
-            int curr_start = index*splitSize;
-//            std::cout << "index*2" << index*2 << ", vms.size()" << vms.size() << std::endl;
-//            std::cout << "Filling split #" << index << ", which starts at index = " << curr_start << ", and ends at index = " <<  (index + 1)*splitSize << ", and vms[index*2].size() = "  << vms[index*2].size() << std::endl;
-            out.insert(out.begin() + curr_start, vms[index*2].begin(), vms[index*2].end());
-        }
+//        for (int index = 0; index < N_SPLITS; index ++) {
+//            int curr_start = index*splitSize;
+////            std::cout << "index*2" << index*2 << ", vms.size()" << vms.size() << std::endl;
+////            std::cout << "Filling split #" << index << ", which starts at index = " << curr_start << ", and ends at index = " <<  (index + 1)*splitSize << ", and vms[index*2].size() = "  << vms[index*2].size() << std::endl;
+////            out.insert(out.begin() + curr_start, vms[index*2].begin(), vms[index*2].end());
+////            std::cout << vms[index*2][0] << std::endl;
+//        }
 
         return 1;
     }
@@ -1376,7 +1377,7 @@ namespace DPF {
         return {key0, key1, key2};
     }
 
-    int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, size_t logn, uint64_t party_index, bool verifiable) {
+    int EvalShamir(const std::vector<KeyShare>& key, uint32_t* vm0_start, uint32_t* vm0_end, uint32_t* vm1_start, uint32_t* vm1_end, size_t logn, uint64_t party_index, bool verifiable) {
         bool index1 = false;
         bool index2 = false;
 
@@ -1390,10 +1391,10 @@ namespace DPF {
 
 //        EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
         auto future_res1 = std::async(std::launch::async, [&](){
-            return DPF::EvalFull8P(key[0], vm1, logn, index1, verifiable, false);
+            return DPF::EvalFull8P(key[0], vm0_start, vm0_end, logn, index1, verifiable, false);
         });
         auto future_res2 = std::async(std::launch::async, [&](){
-            return DPF::EvalFull8P(key[1], vm2, logn, index2, verifiable, true);
+            return DPF::EvalFull8P(key[1], vm1_start, vm1_end, logn, index2, verifiable, true);
         });
 
         auto res1 = future_res1.get();
@@ -1401,8 +1402,9 @@ namespace DPF {
 
         std::array<block, 4> pi1{ZeroBlock,ZeroBlock,ZeroBlock,ZeroBlock};
 
-        for (size_t i = 0; i < vm1.size(); i++) {
-            vm1[i] = (((vm1[i] ^ vm2[i]) * (party_index + 1ULL)) % PP);
+        size_t vm_size = vm0_end - vm0_start;
+        for (size_t i = 0; i < vm_size; i++) {
+            vm0_start[i] = (((vm0_start[i] ^ vm1_start[i]) * (party_index + 1ULL)) % PP);
 
             if (verifiable) {
                 if (i % 4 == 0) {
@@ -1420,7 +1422,11 @@ namespace DPF {
         }
 
         return 1;
-//        return std::make_pair(std::move(vm1), pi);
+
+    }
+
+    int EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, size_t logn, uint64_t party_index, bool verifiable) {
+        return EvalShamir(key, vm1.data(), vm1.data() + vm1.size(), vm2.data(), vm2.data() + vm2.size(), logn, party_index, verifiable);
     }
 
     std::pair<uint32_t, uint32_t> calculate2dIndexes(uint32_t alpha, uint32_t N) {

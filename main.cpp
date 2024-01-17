@@ -669,6 +669,8 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 // Runs a single set of benchmarks
 std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms, int logN) {
     int N = 1 << logN;
+    int log2n_split = logN - static_cast<int>(std::log2(N_SPLITS));
+    int splitSize = N / N_SPLITS;
     std::cout << "Running this benchmark for N = " << N << std::endl;
     std::ofstream readFile(DATA_DIR + "reads" + std::to_string(serverIndex + 1) + ".txt"); // prevents compiler optimizing out
     std::ofstream writeFile(DATA_DIR + "writes" + std::to_string(serverIndex + 1) + ".txt"); // prevents compiler optimizing out
@@ -676,6 +678,14 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
     std::chrono::duration<double> evalT;
     evalT = std::chrono::duration<double>::zero();
     std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << " with idx_start = " << idx_start << " and idx_end = " << idx_end << std::endl;
+
+
+    std::array<std::vector<uint32_t>, 2*N_SPLITS> vmsmulti;
+    if (benchmark == 6) {
+        for (int i = 0; i < 2*N_SPLITS; i++) {
+            vmsmulti[i] = std::vector<uint32_t>(splitSize);
+        }
+    }
 
     for (int i = idx_start; i < idx_end; i++) {
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
@@ -689,7 +699,7 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
             alpha = rand() % (N - 1); // 22;
             // Generate a random number between 1 and 2^30
             beta = rand() % (1 << 16) + 1; // 25;
-        } else if (benchmark == 1 || benchmark == 3 || benchmark == 5) {
+        } else if (benchmark == 1 || benchmark == 3 || benchmark == 5 || benchmark == 6 || benchmark == 7) {
             alpha = rand() % (N - 1); // 22;
             // Generate a random number between 1 and 2^30
             beta = rand() % (1 << 16) + 1; // 25;
@@ -704,6 +714,10 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
 
             if (benchmark == 5) {
                 shamirkeys = DPF::GenShamir(alpha, logN, beta, true);
+            }
+
+            if (benchmark == 6) {
+                shamirkeys = DPF::GenShamirMulti(alpha, logN, beta, false);
             }
 
         }
@@ -750,25 +764,35 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
                 break;
             case 6:
                 time1 = std::chrono::high_resolution_clock::now();
+                DPF::EvalShamirMulti(shamirkeys[0], vmsmulti, vms[0], logN, 0, false);
+                time2 = std::chrono::high_resolution_clock::now();
+                break;
+            case 7:
+                time1 = std::chrono::high_resolution_clock::now();
+//                DPF::EvalShamirMulti(shamirkeys[0], vmsmulti, vms[0], logN, 0, false);
+                time2 = std::chrono::high_resolution_clock::now();
+                break;
+            case 8:
+                time1 = std::chrono::high_resolution_clock::now();
                 server->balance(request.kmsA1_i, request.tag_A1_share, vms);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balance" << std::endl;
                 break;
-            case 7:
+            case 9:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
                                         request.one1, request.one2, vms);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balanceMalicious" << std::endl;
                 break;
-            case 8:
+            case 10:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
                                 request.tag_A1_share, vms);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transfer" << std::endl;
                 break;
-            case 9:
+            case 11:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
                                          request.kmsB_i, request.tag_A_share, request.tag_A1_share,
@@ -777,13 +801,13 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transferMalicious" << std::endl;
                 break;
-            case 10:
+            case 12:
                 time1 = std::chrono::high_resolution_clock::now();
                 v = server->read(request.kmsA1_i, vms);
                 time2 = std::chrono::high_resolution_clock::now();
                 readFile << v << "\n";
                 break;
-            case 11:
+            case 13:
                 time1 = std::chrono::high_resolution_clock::now();
                 writeVec = server->write(request.kmsA_i, vms);
                 time2 = std::chrono::high_resolution_clock::now();
@@ -1285,7 +1309,7 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         if (ALL_BENCHMARKS.find(key) != ALL_BENCHMARKS.end()) {
             // Add the corresponding value to the values vector
             int b = ALL_BENCHMARKS.at(key);
-            if (b > 5) {
+            if (b > 7) {
                 networkBenchmarks = true;
             }
             benchmarksToRun.push_back(b);
@@ -1353,7 +1377,7 @@ int main(int argc, char** argv) {
     std::vector<std::string> benchmarks;
     bool isLocal = std::strcmp(argv[3], "local") == 0;
     if (isLocal) {
-        for (int i = 0; i < 6; i++) {
+        for (int i = 0; i < 8; i++) {
             benchmarks.push_back(BENCHMARK_NAMES[i]);
         }
     } else {
@@ -1398,19 +1422,19 @@ int main(int argc, char** argv) {
 //    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 ////    test_client_transfers(56, serverIndex, N, true, true);
 //    test_fastdpf(N);
-    test_splitdpf(N);
-    return 0;
+//    test_splitdpf(N);
+//    return 0;
 
     int nBenchmarks = 20; // How many iterations to run for each benchmark
 
     if (isLocal) {
         // Run all local tests
-        for (int i = 10; i < N + 1; i++) {
+        for (int i = 18; i < N + 1; i++) {
             std::cout << "Running local benchmarks for logN = " << i << std::endl;
             benchmark_suite(benchmarks, serverIndex, i, false, nBenchmarks);
         }
     } else {
-        bool generateData = false; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
+        bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
         std::cout << "Running benchmarks for logN = " << N << std::endl;
         benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
     }
