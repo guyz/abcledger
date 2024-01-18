@@ -383,10 +383,11 @@ void test_client(int serverIndex, int logN) {
     Server server(serverIndex, N);
     // Generating the underlying vectors..
     std::array<std::vector<uint32_t>, 10> vms;
+    std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10> vmsmulti;
     for (int i = 0; i < 10; i++) {
         vms[i] = std::vector<uint32_t>((1ULL<< logN));
     }
-    server.transfer(kmsA_i, kmsA_i, kmsB_i, tag_A_share, tag_A_share, vms); // TODO: A1 share and tag
+    server.transfer(kmsA_i, kmsA_i, kmsB_i, tag_A_share, tag_A_share, vms, vmsmulti); // TODO: A1 share and tag
 
     std::cout << "Done" << std::endl;
 }
@@ -433,7 +434,8 @@ void test_splitdpf(int logN) {
     int log2n_split = logN - static_cast<int>(std::log2(N_SPLITS));
     int splitSize = N / N_SPLITS;
 
-    auto keys = DPF::GenShamirMulti(alpha, logN, beta, false);
+    bool verifiable = false; // Set to false or true to check different ones
+    auto keys = DPF::GenShamirMulti(alpha, logN, beta, verifiable);
 //    EvalShamirMulti(const std::vector<KeyShare>& key, std::array<std::vector<uint32_t>, N_SPLITS>& vms, std::vector<uint32_t>& out, size_t logn, uint64_t party_index, bool verifiable);
 
     // Generating the underlying vectors..
@@ -447,9 +449,11 @@ void test_splitdpf(int logN) {
         }
     }
 
-    DPF::EvalShamirMulti(keys[0], vms, eval_vms[0], logN, 0, false);
-    DPF::EvalShamirMulti(keys[1], vms, eval_vms[1], logN, 1, false);
-    DPF::EvalShamirMulti(keys[2], vms, eval_vms[2], logN, 2, false);
+
+
+    DPF::EvalShamirMulti(keys[0], vms, eval_vms[0], logN, 0, verifiable);
+    DPF::EvalShamirMulti(keys[1], vms, eval_vms[1], logN, 1, verifiable);
+    DPF::EvalShamirMulti(keys[2], vms, eval_vms[2], logN, 2, verifiable);
 
     for (int i = 0; i < N; i++) {
         auto shares = encode_to_shares({
@@ -511,21 +515,38 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
 
     uint64_t alpha = alphas[senderIndex];
 
+#ifdef ENABLE_MULTI
+    auto kmsA = DPF::GenShamirMulti(senderIndex, logN, amount, false);
+    auto kmsA1 = DPF::GenShamirMulti(senderIndex, logN, 1, false);
+    auto kmsB = DPF::GenShamirMulti(recvIndex, logN, amount, true);
+    auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN); // TODO: change
+    auto kmsA1defer = DPF::DeferredGenShamir(senderIndex, logN);  // TODO: change
+#else
     auto kmsA = DPF::GenShamir(senderIndex, logN, amount, false);
     auto kmsA1 = DPF::GenShamir(senderIndex, logN, 1, false);
     auto kmsB = DPF::GenShamir(recvIndex, logN, amount, true);
     auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN);
     auto kmsA1defer = DPF::DeferredGenShamir(senderIndex, logN);
+#endif
+
 
     for (size_t i = 0; i < kmsAdefer.size(); ++i) {
         auto curr_fn = DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(i) + ".txt";
         auto curr_fn1 = DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(i) + ".txt";
 
+#ifdef ENABLE_MULTI
+//        writePairMulti(kmsAdefer[i], curr_fn);
+//        writePairMulti(kmsA1defer[i], curr_fn1);
+        writePair(kmsAdefer[i], curr_fn); // TODO: change
+        writePair(kmsA1defer[i], curr_fn1); // TODO: change
+#else
         writePair(kmsAdefer[i], curr_fn);
         writePair(kmsA1defer[i], curr_fn1);
+#endif
         writeVector(i, kmsA[i], "transfer_kmsA" + std::to_string(reqNumber) + "_");
         writeVector(i, kmsA1[i], "transfer_kmsAone" + std::to_string(reqNumber) + "_");
         writeVector(i, kmsB[i], "transfer_kmsB" + std::to_string(reqNumber) + "_");
+
     }
 
     field tag_A = mod(alpha*amount, PP);
@@ -534,7 +555,7 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
     field tag_A1 = mod(alpha, PP);
     std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
 
-//    field beta = 55; Below are shares of shares of amount and ones
+//  Below are shares of shares of amount and ones
     std::vector<std::pair<int64_t, int64_t>> amount_shares = gen_shares(3, 2, amount, PP);
     std::vector<std::pair<int64_t, int64_t>> beta0_shares = gen_shares(3, 2, amount_shares[0].second, PP);
     std::vector<std::pair<int64_t, int64_t>> beta1_shares = gen_shares(3, 2, mod(amount_shares[1].second*MODINV2, PP), PP);
@@ -568,7 +589,12 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
 }
 
 struct ClientTransferRequest {
+#ifdef ENABLE_MULTI
+    // TODO: complete this
     std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+#else
+    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+#endif
     std::vector<DPF::KeyShare> kmsA_i;
     std::vector<DPF::KeyShare> kmsA1_i;
     std::vector<DPF::KeyShare> kmsB_i;
@@ -578,8 +604,14 @@ struct ClientTransferRequest {
 ClientTransferRequest load_client_transfer_request(int reqNumber, int idx) {
     ClientTransferRequest clientTransferRequest;
 
+#ifdef ENABLE_MULTI
+    // TODO: complete this
     clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
     clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+#else
+    clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+    clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+#endif
 //    clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "kmsAdefer" + std::to_string(idx) + ".txt");
 //    clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "kmsA1defer" + std::to_string(idx) + ".txt");
 
@@ -667,10 +699,8 @@ void generate_client_transfer_requests(int nRequests, int logN, bool refreshServ
 }
 
 // Runs a single set of benchmarks
-std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10> vms, int logN) {
+std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, int idx_start, int idx_end, int benchmark, std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti, int logN) {
     int N = 1 << logN;
-    int log2n_split = logN - static_cast<int>(std::log2(N_SPLITS));
-    int splitSize = N / N_SPLITS;
     std::cout << "Running this benchmark for N = " << N << std::endl;
     std::ofstream readFile(DATA_DIR + "reads" + std::to_string(serverIndex + 1) + ".txt"); // prevents compiler optimizing out
     std::ofstream writeFile(DATA_DIR + "writes" + std::to_string(serverIndex + 1) + ".txt"); // prevents compiler optimizing out
@@ -678,14 +708,6 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
     std::chrono::duration<double> evalT;
     evalT = std::chrono::duration<double>::zero();
     std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << " with idx_start = " << idx_start << " and idx_end = " << idx_end << std::endl;
-
-
-    std::array<std::vector<uint32_t>, 2*N_SPLITS> vmsmulti;
-    if (benchmark == 6) {
-        for (int i = 0; i < 2*N_SPLITS; i++) {
-            vmsmulti[i] = std::vector<uint32_t>(splitSize);
-        }
-    }
 
     for (int i = idx_start; i < idx_end; i++) {
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
@@ -764,7 +786,7 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
                 break;
             case 6:
                 time1 = std::chrono::high_resolution_clock::now();
-                DPF::EvalShamirMulti(shamirkeys[0], vmsmulti, vms[0], logN, 0, false);
+                DPF::EvalShamirMulti(shamirkeys[0], vmsmulti[0], vms[0], logN, 0, false);
                 time2 = std::chrono::high_resolution_clock::now();
                 break;
             case 7:
@@ -788,7 +810,7 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
             case 10:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
-                                request.tag_A1_share, vms);
+                                request.tag_A1_share, vms, vmsmulti);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transfer" << std::endl;
                 break;
@@ -848,6 +870,7 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
 
     // Generating the underlying vectors..
     std::array<std::vector<uint32_t>, 10> vms;
+    std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10> vmsmulti; // placeholder, this test should not run in multi mode
     for (int i = 0; i < 10; i++) {
         vms[i] = std::vector<uint32_t>((1ULL<< logN));
     }
@@ -861,7 +884,7 @@ void test_client_transfers(int nRequests, int serverIndex, int logN, bool isMali
         benchmark += 1;
     }
 
-    auto evalT = handleBenchmark(&server, serverIndex, idx_start, idx_end, benchmark, vms, logN);
+    auto evalT = handleBenchmark(&server, serverIndex, idx_start, idx_end, benchmark, vms, vmsmulti, logN);
     auto func = "getBalances";
     if (isTransfer) {
         func = "transfers";
@@ -961,12 +984,13 @@ void test_client_malicious(int serverIndex, int logN) {
 
     // Generating the underlying vectors..
     std::array<std::vector<uint32_t>, 10> vms;
+    std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10> vmsmulti;
     for (int i = 0; i < 10; i++) {
         vms[i] = std::vector<uint32_t>((1ULL<< logN));
     }
 
     // Test semi-honest
-    server.transfer(kmsA_i, kmsA1_i, kmsB_i, tag_A_share, tag_A1_share, vms);
+    server.transfer(kmsA_i, kmsA1_i, kmsB_i, tag_A_share, tag_A1_share, vms, vmsmulti);
 
     // Test malicious
     server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share,
@@ -1298,6 +1322,8 @@ void appendToCSV(const std::string& benchmarkName, int serverIndex, int logN, in
 
 void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int logN, bool generateData = true, int nBenchmarks = 300) {
     int N = 1 << logN;
+    int log2n_split = logN - static_cast<int>(std::log2(N_SPLITS));
+    int splitSize = N / N_SPLITS;
 
     // Vector to store the corresponding values
     std::vector<int> benchmarksToRun;
@@ -1333,17 +1359,23 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
 
     // Generating the underlying vectors..
     std::array<std::vector<uint32_t>, 10> vms;
+    std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10> vmsmulti;
     for (int i = 0; i < 10; i++) {
         vms[i] = std::vector<uint32_t>((1ULL<< logN));
+
+        for (int j = 0; j < vmsmulti[i].size(); j++) {
+            vmsmulti[i][j] = std::vector<uint32_t>(splitSize);
+        }
     }
 
+
     for (auto benchmark : benchmarksToRun) {
-        auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms, logN);
+        auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms, vmsmulti, logN);
 
         // TODO: write to a CSV file:
         auto evalT_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(evalT);
         double benchmarkTime = evalT_milliseconds.count();
-        double timePerIter = evalT.count()/(nBenchmarks - 5);
+        double timePerIter = evalT_milliseconds.count()/(nBenchmarks - 5);
         std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << benchmarkTime << "ms. Each iteration took: " << timePerIter << " ms. " << std::endl;
         appendToCSV(BENCHMARK_NAMES[benchmark], serverIndex, logN, nBenchmarks, timePerIter);
     }
@@ -1422,8 +1454,8 @@ int main(int argc, char** argv) {
 //    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 ////    test_client_transfers(56, serverIndex, N, true, true);
 //    test_fastdpf(N);
-//    test_splitdpf(N);
-//    return 0;
+    test_splitdpf(N);
+    return 0;
 
     int nBenchmarks = 20; // How many iterations to run for each benchmark
 

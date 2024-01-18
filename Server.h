@@ -31,7 +31,8 @@ public:
     void transfer(const std::vector<DPF::KeyShare>& key_A,
                   const std::vector<DPF::KeyShare>& key_A1,
                   const std::vector<DPF::KeyShare>& key_B,
-                  field tag_A_share, field tag_A1_share, std::array<std::vector<uint32_t>, 10>& vms);
+                  field tag_A_share, field tag_A1_share,
+                  std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti);
 
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share, std::array<std::vector<uint32_t>, 10>& vms);
     void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);

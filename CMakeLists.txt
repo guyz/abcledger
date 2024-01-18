@@ -36,6 +36,7 @@ SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
 #SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
 
 #add_compile_definitions(ENABLE_DEBUG)
+add_compile_definitions(ENABLE_MULTI)
 link_directories("/usr/lib/x86_64-linux-gnu")
 
 add_executable(prioram ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h Server.cpp Server.h DebugPrint.cpp DebugPrint.h)
