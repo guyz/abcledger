@@ -44,7 +44,8 @@ public:
                                    const std::vector<DPF::KeyShare>& key_B,
                                    field tag_A_share, field tag_A1_share,
                                    field amount_0, field amount_1, field amount_2,
-                                   field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms);
+                                   field one_0, field one_1, field one_2,
+                                   std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti);
 
     uint32_t balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey, uint32_t tag_share,
                               field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms);

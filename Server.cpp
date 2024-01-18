@@ -566,13 +566,12 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, zero_check_c_2, amount_A2, amount_Amax2, new_balance_A2, amount_Br2};
     auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
 
-    // TODO: reenable
-//    assert(reconstructed[0] == 0);
-//    assert(reconstructed[1] == 0);
-//    assert(reconstructed[2] == 0);
-//    assert(reconstructed[3] >= 0 && reconstructed[3] < MAX_VALID_INT);
-//    assert(reconstructed[4] > MAX_VALID_INT); // Because in the field we only should encode unsigned numbers.. TODO: be consistent about this.. probably best to move to uint everywhere ..
-//    assert(reconstructed[5] >= 0 && reconstructed[3] < MAX_VALID_INT);
+    assert(reconstructed[0] == 0);
+    assert(reconstructed[1] == 0);
+    assert(reconstructed[2] == 0);
+    assert(reconstructed[3] >= 0 && reconstructed[3] < MAX_VALID_INT);
+    assert(reconstructed[4] > MAX_VALID_INT); // Because in the field we only should encode unsigned numbers.. TODO: be consistent about this.. probably best to move to uint everywhere ..
+    assert(reconstructed[5] >= 0 && reconstructed[3] < MAX_VALID_INT);
 
     // Finalize the transaction after the MPC round / all checks have passed
     ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
@@ -1328,7 +1327,8 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
                                const std::vector<DPF::KeyShare>& key_B,
                                field tag_A_share, field tag_A1_share,
                                field amount_0, field amount_1, field amount_2,
-                               field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms) {
+                               field one_0, field one_1, field one_2,
+                               std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti) {
 
     //// Protocol description. Items in the same line --> round happens in parallel (or they have the same context)
     // TODO: figure out what is not a must for security.. Open stuff:
@@ -1363,26 +1363,41 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
     field r = PRSS();
     // Expand DPFs
-    // TODO: could/should be parallelized?
-//    auto res_A = DPF::EvalShamir(key_A, log2N, server_index, false);
-//    auto res_A1 = DPF::EvalShamir(key_A1, log2N, server_index, false);
-//    auto res_B = DPF::EvalShamir(key_B, log2N, server_index, true);
+//    auto future_res_A = std::async(std::launch::async, [&](){
+//        return DPF::EvalShamir(key_A, vms[0], vms[1], log2N, server_index, false);
+//    });
+//
+//    auto future_res_A1 = std::async(std::launch::async, [&](){
+//        return DPF::EvalShamir(key_A1, vms[2], vms[3], log2N, server_index, false);
+//    });
+//
+//    auto future_res_B = std::async(std::launch::async, [&](){
+//        return DPF::EvalShamir(key_B, vms[4], vms[5], log2N, server_index, true);
+//    });
 
-//    EvalShamir(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, size_t logn, uint64_t party_index, bool verifiable) {
-//    auto future_res_A = std::async(std::launch::async, DPF::EvalShamir, vms[0], vms[1], key_A, log2N, server_index, false);
-//    auto future_res_A1 = std::async(std::launch::async, DPF::EvalShamir, vms[2], vms[3], key_A1, log2N, server_index, false);
-//    auto future_res_B = std::async(std::launch::async, DPF::EvalShamir, vms[4], vms[5], key_B, log2N, server_index, true);
     auto future_res_A = std::async(std::launch::async, [&](){
-        return DPF::EvalShamir(key_A, vms[0], vms[1], log2N, server_index, false);
-    });
+#ifdef ENABLE_MULTI
+    return DPF::EvalShamirMulti(key_A, vmsmulti[0], vms[0], log2N, server_index, false);
+#else
+    return DPF::EvalShamir(key_A, vms[0], vms[1], log2N, server_index, false);
+#endif
+});
 
-    auto future_res_A1 = std::async(std::launch::async, [&](){
-        return DPF::EvalShamir(key_A1, vms[2], vms[3], log2N, server_index, false);
-    });
+auto future_res_A1 = std::async(std::launch::async, [&](){
+#ifdef ENABLE_MULTI
+    return DPF::EvalShamirMulti(key_A1, vmsmulti[1], vms[2], log2N, server_index, false);
+#else
+    return DPF::EvalShamir(key_A1, vms[2], vms[3], log2N, server_index, false);
+#endif
+});
 
-    auto future_res_B = std::async(std::launch::async, [&](){
-        return DPF::EvalShamir(key_B, vms[4], vms[5], log2N, server_index, true);
-    });
+auto future_res_B = std::async(std::launch::async, [&](){
+#ifdef ENABLE_MULTI
+    return DPF::EvalShamirMulti(key_B, vmsmulti[2], vms[4], log2N, server_index, true);
+#else
+    return DPF::EvalShamir(key_B, vms[4], vms[5], log2N, server_index, true);
+#endif
+});
 
     // Getting the results (this will wait for the thread to finish if it hasn't yet)
     auto res_A = future_res_A.get();
@@ -1436,7 +1451,6 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     debugPrint << "Finished randomizing inputs round" << std::endl;
 //#endif
 
-    // TODO: move this to the beginning, then run all 5 evals in parallel? Could reduce overhead of this scheme..
     const auto Key1 = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC);
     const auto Key2 = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC);
 //    // Randomize DPF inputs (fix codewords)

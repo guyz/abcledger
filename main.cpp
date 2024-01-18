@@ -828,7 +828,7 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
                 server->transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
                                          request.kmsB_i, request.tag_A_share, request.tag_A1_share,
                                          request.beta0, request.beta1, request.beta2, request.one0,
-                                         request.one1, request.one2, vms);
+                                         request.one1, request.one2, vms, vmsmulti);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transferMalicious" << std::endl;
                 break;
@@ -1004,7 +1004,7 @@ void test_client_malicious(int serverIndex, int logN) {
     // Test malicious
     server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share,
                                  beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex],
-                                 one1[serverIndex], one2[serverIndex], vms);
+                                 one1[serverIndex], one2[serverIndex], vms, vmsmulti);
 
     std::cout << "Done" << std::endl;
 }
@@ -1463,10 +1463,10 @@ int main(int argc, char** argv) {
 //    test_client_transfers(100, serverIndex, N, isMalicious, isTransfer);
 ////    test_client_transfers(56, serverIndex, N, true, true);
 //    test_fastdpf(N);
-    test_splitdpf(N);
-    return 0;
+//    test_splitdpf(N);
+//    return 0;
 
-    int nBenchmarks = 20; // How many iterations to run for each benchmark
+    int nBenchmarks = 22; // How many iterations to run for each benchmark
 
     if (isLocal) {
         // Run all local tests
@@ -1475,7 +1475,7 @@ int main(int argc, char** argv) {
             benchmark_suite(benchmarks, serverIndex, i, false, nBenchmarks);
         }
     } else {
-        bool generateData = true; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
+        bool generateData = false; // Need to refresh the data before running this benchmark. Can skip if already ran the same test..
         std::cout << "Running benchmarks for logN = " << N << std::endl;
         benchmark_suite(benchmarks, serverIndex, N, generateData, nBenchmarks);
     }
