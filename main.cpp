@@ -430,7 +430,8 @@ void test_fastdpf(int logN) {
 void test_splitdpf(int logN) {
     int N = 1 << logN;
     int beta = 7;
-    int alpha = 254;
+//    int alpha = 254;
+    int alpha = 2000;
     int log2n_split = logN - static_cast<int>(std::log2(N_SPLITS));
     int splitSize = N / N_SPLITS;
 
@@ -441,7 +442,7 @@ void test_splitdpf(int logN) {
     // Generating the underlying vectors..
     std::array<std::vector<uint32_t>, 2*N_SPLITS> vms;
     std::array<std::vector<uint32_t>, 3> eval_vms;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < vms.size(); i++) {
         vms[i] = std::vector<uint32_t>(splitSize);
 
         if (i < 3) {
@@ -467,7 +468,15 @@ void test_splitdpf(int logN) {
         if (v != 0) {
             std::cout << "arr[" << i << "]: " << v << std::endl;
         }
+
+//        if (i < 260 && i > 250) {
+//            std::cout << "important1[" << i << "]: " << eval_vms[0][i] << std::endl;
+//            std::cout << "important2[" << i << "]: " << eval_vms[1][i] << std::endl;
+//            std::cout << "important3[" << i << "]: " << eval_vms[2][i] << std::endl;
+//            std::cout << "important[" << i << "]: " << v << std::endl;
+//        }
     }
+
 }
 
 void test_client_deferred(int serverIndex, int logN) {

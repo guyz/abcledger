@@ -1257,7 +1257,7 @@ namespace DPF {
         std::future<int> future;
         int index;
     };
-
+    // TODO: need only N_SPLIT vms and not 2*N_SPLITs
     int EvalShamirMulti(const std::vector<KeyShare>& key, std::array<std::vector<uint32_t>, 2*N_SPLITS>& vms, std::vector<uint32_t>& out, size_t logn, uint64_t party_index, bool verifiable) {
         int log2n_split = logn - static_cast<int>(std::log2(N_SPLITS));
         int N = 1 << logn;
@@ -1266,8 +1266,10 @@ namespace DPF {
         // Parallel loop
         std::vector<std::future<void>> futures;
         for (int i = 0; i < 2*N_SPLITS; i += 2) {
-            futures.push_back(std::async(std::launch::async, [&key, &vms, i, log2n_split, party_index]() {
-                DPF::EvalShamir({key[i], key[i + 1]}, vms[i], vms[i + 1], log2n_split, party_index, false);
+            futures.push_back(std::async(std::launch::async, [&key, &vms, &out, i, log2n_split, splitSize, party_index, verifiable]() {
+//                DPF::EvalShamir({key[i], key[i + 1]}, vms[i], vms[i + 1], log2n_split, party_index, verifiable);
+                        int i2 = i/2;
+                DPF::EvalShamir({key[i], key[i + 1]}, out.data() + i2*splitSize, out.data() + (i2+1)*splitSize, vms[i2].data(), vms[i2].data() + vms[i2].size(), log2n_split, party_index, verifiable);
             }));
         }
 
@@ -1391,9 +1393,11 @@ namespace DPF {
 
 //        EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
         auto future_res1 = std::async(std::launch::async, [&](){
+//            std::cout << "Sending vm_start: " << reinterpret_cast<uintptr_t>(vm0_start) << ", vm_end: " << reinterpret_cast<uintptr_t>(vm0_end) << std::endl;
             return DPF::EvalFull8P(key[0], vm0_start, vm0_end, logn, index1, verifiable, false);
         });
         auto future_res2 = std::async(std::launch::async, [&](){
+//                std::cout << "Sending vm1_start: " << reinterpret_cast<uintptr_t>(vm1_start) << ", vm1_end: " << reinterpret_cast<uintptr_t>(vm1_end) << std::endl;
             return DPF::EvalFull8P(key[1], vm1_start, vm1_end, logn, index2, verifiable, true);
         });
 
