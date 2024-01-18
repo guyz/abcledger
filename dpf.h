@@ -5,7 +5,7 @@
 #include <iostream>
 #include <mutex>
 #include <atomic>
-
+#include "AES.h"
 #include "Defines.h"
 #include "utils.h"
 #include <cryptopp/sha.h>
@@ -100,8 +100,37 @@ namespace DPF {
     int EvalFast(const std::vector<KeyShare>& key, std::vector<uint32_t>& vm1, std::vector<uint32_t>& vm2, std::vector<uint32_t>& vm3, std::vector<uint32_t>& vm4, std::vector<uint32_t>& out, size_t logn, uint64_t party_index);
 
     namespace prg {
-        std::array<block, 4> hash1(const block& seed, uint32_t x);
-        std::array<block, 4> hash1v2(const block& seed, uint32_t x);
+//        std::array<block, 4> hash1(const block& seed, uint32_t x);
+//        std::array<block, 4> hash1v2(const block& seed, uint32_t x);
+        inline std::array<block, 4> hash1(const block& seed, uint32_t x) {
+            std::array<block, 4> full_seed, output;
+            reg_arr_union tmp;
+            tmp.reg = seed;
+
+            for (int i = 0; i < 4; ++i) {
+                tmp.arr32[0] = tmp.arr32[0] << i;
+                full_seed[i] = tmp.reg;
+                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
+            }
+
+            // TODO: this prob does nothing because mmo blocks need 8 blocks I think..
+//            mAesFixedKey.encryptECB_MMO_Blocks(full_seed.data(), 4, output.data());
+            return output;
+        }
+
+//        void hash1v2(const block& seed, uint32_t x, block* output) {
+        inline std::array<block, 4> hash1v2(const block& seed, uint32_t x) {
+            std::array<block, 4> full_seed, output;
+            reg_arr_union tmp;
+            tmp.reg = seed;
+
+            for (int i = 0; i < 4; ++i) {
+                tmp.arr32[0] = tmp.arr32[0] << i;
+                full_seed[i] = tmp.reg;
+                EncryptAesEcb(full_seed[i], output[i]);
+//                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
+            }
+        }
 //        void hash1v2(const block& seed, uint32_t x, block* output);
         std::array<block, 4> hash2(const std::array<block, 4>& h);
 

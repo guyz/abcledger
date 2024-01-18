@@ -1,7 +1,7 @@
 #include "dpf.h"
 #include "Defines.h"
 #include "PRNG.h"
-#include "AES.h"
+
 #include "Log.h"
 #include <iostream>
 #include <cassert>
@@ -13,9 +13,11 @@
 #include <emmintrin.h>
 #include <future>
 #include "shamir.h"
+#include "BS_thread_pool.hpp"
 
 const int FIELD_ORDER = 2^31 - 1;
 std::vector<block> globalVector0, globalVector1;
+BS::thread_pool pool(192);
 //extern std::vector<std::array<block, 4>> globalPiVector;
 //std::array<std::vector<uint32_t>, 3> vms;
 //DPF::HackyVectorAllocator allocator;
@@ -42,35 +44,35 @@ namespace DPF {
         }
 
         // Implementation of H() from the verifiable DPF paper.
-        std::array<block, 4> hash1(const block& seed, uint32_t x) {
-            std::array<block, 4> full_seed, output;
-            reg_arr_union tmp;
-            tmp.reg = seed;
-
-            for (int i = 0; i < 4; ++i) {
-                tmp.arr32[0] = tmp.arr32[0] << i;
-                full_seed[i] = tmp.reg;
-                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
-            }
-
-            // TODO: this prob does nothing because mmo blocks need 8 blocks I think..
-//            mAesFixedKey.encryptECB_MMO_Blocks(full_seed.data(), 4, output.data());
-            return output;
-        }
-
-//        void hash1v2(const block& seed, uint32_t x, block* output) {
-        std::array<block, 4> hash1v2(const block& seed, uint32_t x) {
-            std::array<block, 4> full_seed, output;
-            reg_arr_union tmp;
-            tmp.reg = seed;
-
-            for (int i = 0; i < 4; ++i) {
-                tmp.arr32[0] = tmp.arr32[0] << i;
-                full_seed[i] = tmp.reg;
-                EncryptAesEcb(full_seed[i], output[i]);
+//        inline std::array<block, 4> hash1(const block& seed, uint32_t x) {
+//            std::array<block, 4> full_seed, output;
+//            reg_arr_union tmp;
+//            tmp.reg = seed;
+//
+//            for (int i = 0; i < 4; ++i) {
+//                tmp.arr32[0] = tmp.arr32[0] << i;
+//                full_seed[i] = tmp.reg;
 //                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
-            }
-        }
+//            }
+//
+//            // TODO: this prob does nothing because mmo blocks need 8 blocks I think..
+////            mAesFixedKey.encryptECB_MMO_Blocks(full_seed.data(), 4, output.data());
+//            return output;
+//        }
+//
+////        void hash1v2(const block& seed, uint32_t x, block* output) {
+//        inline std::array<block, 4> hash1v2(const block& seed, uint32_t x) {
+//            std::array<block, 4> full_seed, output;
+//            reg_arr_union tmp;
+//            tmp.reg = seed;
+//
+//            for (int i = 0; i < 4; ++i) {
+//                tmp.arr32[0] = tmp.arr32[0] << i;
+//                full_seed[i] = tmp.reg;
+//                EncryptAesEcb(full_seed[i], output[i]);
+////                output[i] = mAesFixedKey.encryptECB_MMO(full_seed[i]);
+//            }
+//        }
 
         // Implementation of H() from the verifiable DPF paper.
 //        void hash1v2(const block& seed, uint32_t x, block* output) {
@@ -956,7 +958,7 @@ namespace DPF {
     }
 
     // optimized for vectorized ops
-    void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
+    inline void EvalFullRecursive8M(const std::vector<uint8_t>& key, std::array<block, 8>& s, std::array<uint8_t,8>& t, size_t lvl, size_t stop, std::array<uint32_t*,8>& res, std::array<block*,8>& res_nodes, block *CW, bool party_index, bool verifiable) {
         if(lvl == stop) {
             std::array<reg_arr_union,8> tmp;
             reg_arr_union CW;
@@ -1266,7 +1268,10 @@ namespace DPF {
         // Parallel loop
         std::vector<std::future<void>> futures;
         for (int i = 0; i < 2*N_SPLITS; i += 2) {
-            futures.push_back(std::async(std::launch::async, [&key, &vms, &out, i, log2n_split, splitSize, party_index, verifiable]() {
+
+//            futures.push_back(pool.submit_task([&] {
+            futures.push_back(pool.submit_task([&key, &vms, &out, i, log2n_split, splitSize, party_index, verifiable]() {
+//            futures.push_back(std::async(std::launch::async, [&key, &vms, &out, i, log2n_split, splitSize, party_index, verifiable]() {
 //                DPF::EvalShamir({key[i], key[i + 1]}, vms[i], vms[i + 1], log2n_split, party_index, verifiable);
                         int i2 = i/2;
                 DPF::EvalShamir({key[i], key[i + 1]}, out.data() + i2*splitSize, out.data() + (i2+1)*splitSize, vms[i2].data(), vms[i2].data() + vms[i2].size(), log2n_split, party_index, verifiable);
@@ -1392,11 +1397,11 @@ namespace DPF {
         }
 
 //        EvalFull8P(const KeyShare& key, std::vector<uint32_t>& vm, size_t logn, bool party_index = false, bool verifiable = false, bool pi_index = false);
-        auto future_res1 = std::async(std::launch::async, [&](){
+        auto future_res1 = pool.submit_task([&] {
 //            std::cout << "Sending vm_start: " << reinterpret_cast<uintptr_t>(vm0_start) << ", vm_end: " << reinterpret_cast<uintptr_t>(vm0_end) << std::endl;
             return DPF::EvalFull8P(key[0], vm0_start, vm0_end, logn, index1, verifiable, false);
         });
-        auto future_res2 = std::async(std::launch::async, [&](){
+        auto future_res2 = pool.submit_task([&] {
 //                std::cout << "Sending vm1_start: " << reinterpret_cast<uintptr_t>(vm1_start) << ", vm1_end: " << reinterpret_cast<uintptr_t>(vm1_end) << std::endl;
             return DPF::EvalFull8P(key[1], vm1_start, vm1_end, logn, index2, verifiable, true);
         });

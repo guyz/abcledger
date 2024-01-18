@@ -24,6 +24,7 @@
 #include <vector>
 #include <cstring>
 #include "DebugPrint.h"
+#include "BS_thread_pool.hpp"
 
 // TODO: Things to implement:
 // Frand, Fzero, Fltz, PRZS, PRSS
@@ -1375,7 +1376,9 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //        return DPF::EvalShamir(key_B, vms[4], vms[5], log2N, server_index, true);
 //    });
 
-    auto future_res_A = std::async(std::launch::async, [&](){
+    extern BS::thread_pool pool;
+
+    auto future_res_A = pool.submit_task([&] {
 #ifdef ENABLE_MULTI
     return DPF::EvalShamirMulti(key_A, vmsmulti[0], vms[0], log2N, server_index, false);
 #else
@@ -1383,7 +1386,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 #endif
 });
 
-auto future_res_A1 = std::async(std::launch::async, [&](){
+    auto future_res_A1 = pool.submit_task([&] {
 #ifdef ENABLE_MULTI
     return DPF::EvalShamirMulti(key_A1, vmsmulti[1], vms[2], log2N, server_index, false);
 #else
@@ -1391,7 +1394,7 @@ auto future_res_A1 = std::async(std::launch::async, [&](){
 #endif
 });
 
-auto future_res_B = std::async(std::launch::async, [&](){
+    auto future_res_B = pool.submit_task([&] {
 #ifdef ENABLE_MULTI
     return DPF::EvalShamirMulti(key_B, vmsmulti[2], vms[4], log2N, server_index, true);
 #else
@@ -1471,21 +1474,21 @@ auto future_res_B = std::async(std::launch::async, [&](){
 //    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
 //    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
 
-    auto future_data_A_MAC = std::async(std::launch::async, [&] {
+    auto future_data_A_MAC = pool.submit_task([&] {
         return DPF::EvalShamir(Key1, vms[6], vms[7], log2N, server_index, false);
     });
-    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
+    auto future_data_A1_MAC = pool.submit_task([&] {
         return DPF::EvalShamir(Key2, vms[8], vms[9], log2N, server_index, false);
     });
 
 //    // Start asynchronous tasks for the rest of the computations
-    auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
+    auto future_tag_share_A_prime = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
     });
-    auto future_tag_share_A1_prime = std::async(std::launch::async, [&] {
+    auto future_tag_share_A1_prime = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
     });
-    auto future_balance_A = std::async(std::launch::async, [&] {
+    auto future_balance_A = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
     });
     // ... [other asynchronous tasks] ...
@@ -1497,16 +1500,16 @@ auto future_res_B = std::async(std::launch::async, [&](){
     auto& data_A_MAC = vms[6];
 
     // Start asynchronous tasks for the MAC computations
-    auto future_tag_share_A_prime_MAC = std::async(std::launch::async, [&] {
+    auto future_tag_share_A_prime_MAC = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
     });
     auto res_A1_MAC = future_data_A1_MAC.get();
     auto& data_A1_MAC = vms[8];
 
-    auto future_tag_share_A1_prime_MAC = std::async(std::launch::async, [&] {
+    auto future_tag_share_A1_prime_MAC = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
     });
-    auto future_balance_A_MAC = std::async(std::launch::async, [&] {
+    auto future_balance_A_MAC = pool.submit_task([&] {
         return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
     });
 

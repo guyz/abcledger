@@ -32,6 +32,7 @@ namespace PIRW {
 
         // Add the corresponding elements of a and b and store the result in c
 //#pragma omp parallel for simd num_threads(N_THREADS)
+//#pragma omp simd
         for (size_t i = 0; i < a.size(); i++)
         {
 //            c[i] = modmersenne31(a[i] + b[i]);
@@ -56,6 +57,7 @@ namespace PIRW {
 
         // Add the corresponding elements of a and b and store the result in c
 //#pragma omp parallel for simd num_threads(N_THREADS)
+//#pragma omp simd
         for (size_t i = 0; i < a.size(); i++)
         {
 //            c[i] = modmersenne31(a[i] + b[i]);
@@ -81,6 +83,7 @@ namespace PIRW {
         // Compute the inner product of the two vectors by summing the
         // products of the corresponding elements of a and b
 //        #pragma omp parallel for reduction(+:inner_product) num_threads(N_THREADS)
+//#pragma omp simd for reduction(+:inner_product)
         for (size_t i = 0; i < a.size(); i++)
         {
 //            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
@@ -102,6 +105,7 @@ namespace PIRW {
         // Compute the inner product of the two vectors by summing the
         // products of the corresponding elements of a and b
 //        #pragma omp parallel for reduction(+:result) num_threads(N_THREADS)
+//#pragma omp simd for reduction(+:result)
         for (size_t i = 0; i < a.size(); i++)
         {
             result += a[i];

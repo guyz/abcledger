@@ -25,12 +25,13 @@ set(SRCS
         dpf.cpp
         hashdatastore.cpp)
 
+#set(CMAKE_C_FLAGS "-ffunction-sections -Wall -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -fopenmp -Wno-strict-overflow -Wno-ignored-attributes")
 set(CMAKE_C_FLAGS "-ffunction-sections -Wall -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow -Wno-ignored-attributes")
 #set(CMAKE_C_FLAGS "-ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
 set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS}")
 
 # Select flags.
-SET(CMAKE_CXX_FLAGS_RELEASE "-Ofast")
+SET(CMAKE_CXX_FLAGS_RELEASE "-Ofast -DNDEBUG")
 SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO " -O2 -g -ggdb -rdynamic")
 SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
 #SET(CMAKE_CXX_FLAGS_DEBUG  "-O3 -g -ggdb -rdynamic")
@@ -38,7 +39,8 @@ SET(CMAKE_CXX_FLAGS_DEBUG  "-O0 -g -ggdb -rdynamic")
 #add_compile_definitions(ENABLE_DEBUG)
 add_compile_definitions(ENABLE_MULTI)
 link_directories("/usr/lib/x86_64-linux-gnu")
+#link_directories("/usr/lib/llvm-10/lib")
 
 add_executable(prioram ${SRCS} main.cpp pirw.cpp pirw.h shamir.cpp shamir.h utils.cpp utils.h Server.cpp Server.h DebugPrint.cpp DebugPrint.h)
 target_link_libraries(prioram crypto cryptopp)
-#target_link_options(prioram PRIVATE -fopenmp)
+#target_link_libraries(prioram crypto cryptopp omp)

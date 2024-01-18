@@ -1466,7 +1466,7 @@ int main(int argc, char** argv) {
 //    test_splitdpf(N);
 //    return 0;
 
-    int nBenchmarks = 22; // How many iterations to run for each benchmark
+    int nBenchmarks = 20; // How many iterations to run for each benchmark
 
     if (isLocal) {
         // Run all local tests
