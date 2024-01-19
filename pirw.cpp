@@ -97,6 +97,32 @@ namespace PIRW {
 //        return modmersenne31(inner_product);
     }
 
+    uint32_t innerprodff31v(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
+        if (a.size() != b.size()) {
+            throw std::invalid_argument("Vectors must have the same size");
+        }
+
+        uint64_t inner_product = 0;
+
+        const uint32_t LOW_MASK = 0xFFFF;
+        const uint32_t HIGH_SHIFT = 16;
+
+        for (size_t i = 0; i < a.size(); i += 8) {
+            __m256i vec_a256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&a[i]));
+            __m256i vec_b256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&b[i]));
+
+            __m512i vec_a = _mm512_cvtepu32_epi64(vec_a256); // Zero extend to be 64-bits
+            __m512i vec_b = _mm512_cvtepu32_epi64(vec_b256);
+
+            __m512i vec_c = _mm512_mullox_epi64(vec_a, vec_b); // This intrinsic generates a sequence of instructions, which may perform worse than a native instruction. Consider the performance impact of this intrinsic.
+//            __m512i vec_c = _mm512_mul_epu32(vec_a, vec_b); // TODO: check this is the same?
+
+            inner_product = modu(inner_product + vector_sum(vec_c), PP);
+        }
+
+        return modu(inner_product, PP);
+    }
+
     // Sums a vector
     uint32_t sumvecff31(const std::vector<uint32_t>& a)
     {

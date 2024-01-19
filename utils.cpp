@@ -58,18 +58,6 @@ uint32_t modmersenne31(uint32_t x) {
     return res;
 }
 
-uint32_t modmersenne31safe64(uint64_t x) {
-    uint64_t x0 = x >> 31;
-    uint64_t x1 = x & PP;
-    uint32_t res = x0 + x1;
-    if (res == PP) return 0; // edge case;
-    if (res > PP) {
-        std::cout << res << " is still larger than the field size, running mod again" << std::endl;
-        res = modmersenne31safe64(res); // This may occur if the original number was larger than 32bit?
-    }
-    return res;
-}
-
 // Returns the 'positive mod' - i.e., what we need to operate over a field.
 // Only relevant when computing minus or sub..
 //int64_t mod(int64_t a, int64_t b) {

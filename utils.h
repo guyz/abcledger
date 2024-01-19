@@ -14,6 +14,7 @@
 #include <filesystem>
 #include <map>
 #include <sstream>
+#include <iostream>
 
 const std::string DATA_DIR = "/home/azureuser/work/data/"; // TODO: generalize this
 const int OTHER_PRIME = 4294967111;
@@ -99,11 +100,96 @@ bool are_vectors_equal_2(const std::vector<block>& arr1, const std::vector<block
 
 // mod 2^31 - 1
 uint32_t modmersenne31(uint32_t x);
-uint32_t modmersenne31safe64(uint64_t x); // hackish to prevent overflow when multiplying two 32-bit numbers
+inline uint32_t modmersenne31safe64(uint64_t x) {
+    uint64_t x0 = x >> 31;
+    uint64_t x1 = x & PP;
+    uint32_t res = x0 + x1;
+    if (res == PP) return 0; // edge case;
+    if (res > PP) {
+        std::cout << res << " is still larger than the field size, running mod again" << std::endl;
+        res = modmersenne31safe64(res); // This may occur if the original number was larger than 32bit?
+    }
+    return res;
+}
 inline int64_t mod(const int64_t a, const int64_t b) {
     int64_t result = a % b;
     return (result < 0) ? result + b : result;
 }
+
+inline uint64_t modu(const uint64_t a, const uint64_t b) {
+    return a % b;
+}
+
+inline uint64_t vector_sum(__m512i a) {
+    // Masks for high and low parts
+    __m512i low_mask = _mm512_set1_epi64(0xFFFFFFFF);
+
+    // Step 1: Split each vector into high and low 32-bit parts
+    __m512i a_low = _mm512_and_si512(a, low_mask);
+    __m512i a_high = _mm512_srli_epi64(a, 32);
+
+    // Step 2: Sum each part separately
+//    uint64_t sum_low = _mm512_reduce_add_epi64(a_low) % PP; // NOTE: I wonder if with a less favorable field this would work? reducing both the low bits and high bits
+//    uint64_t sum_high = _mm512_reduce_add_epi64(a_high) % PP;
+    uint64_t sum_low = _mm512_reduce_add_epi64(a_low);
+//    uint64_t sum_low = modmersenne31safe64(_mm512_reduce_add_epi64(a_low));
+    uint64_t sum_high = modmersenne31safe64(_mm512_reduce_add_epi64(a_high));
+
+    // Step 3: Combine the sums with proper handling of carry
+    uint64_t carry = (sum_low >> 32);
+    sum_low &= 0xFFFFFFFF;  // Ensure sum_low is within 32-bit range
+    sum_high = (sum_high + carry); // Add carry to sum_high
+
+    // Combine the sums for the final result
+    uint64_t result = (sum_high << 32) | sum_low;
+
+    return result;  // Apply modulo to the final result
+}
+
+//inline uint64_t vector_sum(__m512i a) {
+//    // Masks for high and low parts
+//    __m512i low_mask = _mm512_set1_epi64(0xFFFFFFFF);
+//
+//    // Step 1: Split each vector into high and low 32-bit parts
+//    __m512i a_low = _mm512_and_si512(a, low_mask);
+//    __m512i a_high = _mm512_srli_epi64(a, 32);
+//
+//    // Step 2: Sum each part
+//    uint64_t sum_low = _mm512_reduce_add_epi64(a_low);
+//    uint64_t sum_high = _mm512_reduce_add_epi64(a_high);
+//
+//    // Step 3: Adjust for carry from low sum and combine the sums
+//    uint64_t carry = (sum_low >> 32);
+//    uint64_t adjusted_sum_high = sum_high + carry;
+//    uint64_t result = (adjusted_sum_high << 32) | (sum_low & 0xFFFFFFFF);
+//
+//    return result;
+//}
+
+inline uint64_t vector_sum2(__m512i a) {
+    // Sum 64-bit integers directly, as they are the result of 32-bit multiplications extended to 64 bits.
+    return _mm512_reduce_add_epi64(a) % PP;
+//    return _mm512_reduce_add_epi64(a);
+}
+
+inline uint64_t vector_sum3(__m512i a) {
+    uint64_t result = 0;
+    alignas(64) uint64_t temp[8]; // Temporary array to store the 64-bit integers from the vector
+
+    // Store the 64-bit integers from the vector into the temporary array
+    _mm512_store_si512(reinterpret_cast<__m512i*>(temp), a);
+
+    // Sum the elements of the temporary array
+    for (int i = 0; i < 8; ++i) {
+        result = (result + temp[i]) % PP;
+    }
+
+    // Apply modulo operation
+    result %= PP;
+
+    return result;
+}
+
 
 // vectorized (4 ints) mod 2^31 - 1
 block modmersenne31block(block x);

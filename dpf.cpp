@@ -17,7 +17,7 @@
 
 const int FIELD_ORDER = 2^31 - 1;
 std::vector<block> globalVector0, globalVector1;
-BS::thread_pool pool(192);
+BS::thread_pool pool(256);
 //extern std::vector<std::array<block, 4>> globalPiVector;
 //std::array<std::vector<uint32_t>, 3> vms;
 //DPF::HackyVectorAllocator allocator;

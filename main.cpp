@@ -479,6 +479,88 @@ void test_splitdpf(int logN) {
 
 }
 
+void test_vector_sum() {
+    std::random_device rd;
+    std::mt19937_64 eng(rd());
+    std::uniform_int_distribution<uint64_t> distr;
+
+    uint64_t expected_sum = 0;
+    std::array<uint64_t, 8> a;
+    for (int i = 0; i < 8; ++i) {
+        uint64_t rand_val = distr(eng);
+        a[i] = rand_val;
+        expected_sum += rand_val;
+    }
+
+    __m512i test_vector = _mm512_loadu_si512(a.data());
+
+    uint64_t result = vector_sum(test_vector);
+
+    std::cout << "Expected sum: " << expected_sum << "\n";
+    std::cout << "Computed sum: " << result << "\n";
+
+    assert(result == expected_sum);
+    std::cout << "Test passed." << std::endl;
+}
+
+void testInnerProducts(int N = 0) {
+    srand(time(0));
+    // Define your test data here
+//    std::vector<uint32_t> a = {1, 2, 3, 4, 5, 6, 7, 8};
+//    std::vector<uint32_t> b = {8, 7, 6, 5, 4, 3, 2, 1};
+//    std::vector<uint32_t> a = {98765431, 87654321, 76543211, 65432101, 54321091, 43210981, 32109871, 21098761};
+//    std::vector<uint32_t> b = {21098761, 32109871, 43210981, 54321091, 65432101, 76543211, 87654321, 98765431};
+//
+
+
+    std::vector<uint32_t> a, b;
+
+    if (N == 0) {
+        a = {2030915413,
+             1948150496,
+             1924687409,
+             182401891,
+             359537759,
+             478939148,
+             362550516,
+             925433352,
+             275586411,
+             1508459803};
+
+        b = {1470535832,
+             547371092,
+             958743715,
+             652027602,
+             464698955,
+             1361439571,
+             2102508396,
+             491353729,
+             1509396851,
+             1160417234};
+    } else {
+        for (int i = 0; i < N; i++) {
+            a.push_back(rand() % PP);
+            b.push_back(rand() % PP);
+        }
+    }
+
+//    for (int i = 0; i < a.size(); i++) {
+//        a[i] = mod(a[i], PP);
+//        b[i] = mod(b[i], PP);
+//    }
+
+    // Calculate the results using both functions
+    uint32_t result1 = PIRW::innerprodff31(a, b) % PP;
+    uint32_t result2 = PIRW::innerprodff31v(a, b) % PP;
+
+    // Check if the results match
+    assert(result1 == result2);
+
+    // Print the results (optional)
+    std::cout << "Result 1: " << result1 << std::endl;
+    std::cout << "Result 2: " << result2 << std::endl;
+}
+
 void test_client_deferred(int serverIndex, int logN) {
     int N = 1 << logN;
     int amount = 7;
@@ -1464,6 +1546,9 @@ int main(int argc, char** argv) {
 ////    test_client_transfers(56, serverIndex, N, true, true);
 //    test_fastdpf(N);
 //    test_splitdpf(N);
+//    test_vector_sum();
+//    testInnerProducts(32768);
+//    testInnerProducts(1024*1024);
 //    return 0;
 
     int nBenchmarks = 20; // How many iterations to run for each benchmark
