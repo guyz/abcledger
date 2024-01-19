@@ -19,7 +19,7 @@ namespace PIRW {
     }
 
     // Takes two vectors a, b, and returns a vector c which adds them together
-    std::vector<uint32_t> addvff31(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b)
+    void addvff31(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b, std::vector<uint32_t>& c)
     {
         // Make sure the vectors have the same size
         if (a.size() != b.size())
@@ -27,8 +27,7 @@ namespace PIRW {
             throw std::invalid_argument("Vectors must have the same size");
         }
 
-        // Create a vector to holprd the result
-        std::vector<uint32_t> c(a.size());
+        // Create a vector to hold the result
 
         // Add the corresponding elements of a and b and store the result in c
 //#pragma omp parallel for simd num_threads(N_THREADS)
@@ -40,20 +39,16 @@ namespace PIRW {
             c[i] = mod((static_cast<int64_t>(a[i]) + b[i]), PP);
         }
 
-        return c;
     }
 
     // Takes two vectors a, b, and returns a vector c which subtracts them together
-    std::vector<uint32_t> subvff31(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b)
+    void subvff31(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b, std::vector<uint32_t>& c)
     {
         // Make sure the vectors have the same size
         if (a.size() != b.size())
         {
             throw std::invalid_argument("Vectors must have the same size");
         }
-
-        // Create a vector to hold the result
-        std::vector<uint32_t> c(a.size());
 
         // Add the corresponding elements of a and b and store the result in c
 //#pragma omp parallel for simd num_threads(N_THREADS)
@@ -64,8 +59,6 @@ namespace PIRW {
 //            c[i] = (a[i] - b[i]) % PP;
             c[i] = mod((static_cast<int64_t>(a[i]) - b[i]), PP);
         }
-
-        return c;
     }
 
     // Takes two vectors a, b, and returns a scalar c which is the inner product of the two
@@ -86,15 +79,20 @@ namespace PIRW {
 //#pragma omp simd for reduction(+:inner_product)
         for (size_t i = 0; i < a.size(); i++)
         {
-//            uint64_t tmp = modmersenne31(static_cast<int64_t>(a[i]) * b[i]);
-            uint64_t tmp = mod((static_cast<uint64_t>(a[i]) * b[i]), PP);
-//            inner_product = mod(inner_product + tmp, PP); // TODO: maybe don't need this mod and can optimize here?
+            uint64_t tmp;
+
+            tmp = (static_cast<uint64_t>(a[i]) * b[i]) % PP;
+
+//            if ((tmp & mask) != 0) {
+//                tmp %= PP;
+//            } else if ((inner_product & mask2) != 0) {
+//                inner_product %= PP;
+//            }
+
             inner_product += tmp;
-//            inner_product = (inner_product + tmp) % PP;
         }
 
-        return mod(inner_product, PP);
-//        return modmersenne31(inner_product);
+        return inner_product % PP;
     }
 
     uint32_t innerprodff31v(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
@@ -104,23 +102,22 @@ namespace PIRW {
 
         uint64_t inner_product = 0;
 
-        const uint32_t LOW_MASK = 0xFFFF;
-        const uint32_t HIGH_SHIFT = 16;
-
         for (size_t i = 0; i < a.size(); i += 8) {
             __m256i vec_a256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&a[i]));
             __m256i vec_b256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&b[i]));
-
+//            __m256i vec_a256 = _mm256_load_si256(reinterpret_cast<const __m256i *>(&a[i]));
+//            __m256i vec_b256 = _mm256_load_si256(reinterpret_cast<const __m256i *>(&b[i]));
             __m512i vec_a = _mm512_cvtepu32_epi64(vec_a256); // Zero extend to be 64-bits
             __m512i vec_b = _mm512_cvtepu32_epi64(vec_b256);
 
-            __m512i vec_c = _mm512_mullox_epi64(vec_a, vec_b); // This intrinsic generates a sequence of instructions, which may perform worse than a native instruction. Consider the performance impact of this intrinsic.
-//            __m512i vec_c = _mm512_mul_epu32(vec_a, vec_b); // TODO: check this is the same?
+//            __m512i vec_c = _mm512_mullox_epi64(vec_a, vec_b); // This intrinsic generates a sequence of instructions, which may perform worse than a native instruction. Consider the performance impact of this intrinsic.
+            __m512i vec_c = _mm512_mul_epu32(vec_a, vec_b);
 
-            inner_product = modu(inner_product + vector_sum(vec_c), PP);
+//            inner_product = modu(inner_product + vector_sum(vec_c), PP);
+            inner_product = (inner_product + vector_sum(vec_c)) % PP;
         }
 
-        return modu(inner_product, PP);
+        return inner_product % PP;
     }
 
     // Sums a vector

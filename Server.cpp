@@ -575,8 +575,8 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
     assert(reconstructed[5] >= 0 && reconstructed[3] < MAX_VALID_INT);
 
     // Finalize the transaction after the MPC round / all checks have passed
-    ledger = PIRW::subvff31(ledger, data_A); // TODO: parallelize
-    ledger = PIRW::addvff31(ledger, data_B); // TODO: parallelize
+    PIRW::subvff31(ledger, data_A, ledger); // TODO: parallelize
+    PIRW::addvff31(ledger, data_B, ledger); // TODO: parallelize
 
     debugPrint << "Transfer (semi-honest) succeeded!" << std::endl;
 
@@ -1483,13 +1483,13 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
 //    // Start asynchronous tasks for the rest of the computations
     auto future_tag_share_A_prime = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A)), PP);
     });
     auto future_tag_share_A1_prime = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A1)), PP);
     });
     auto future_balance_A = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31v(data_A1, ledger)), PP);
     });
     // ... [other asynchronous tasks] ...
     field tag_share_A_prime = future_tag_share_A_prime.get();
@@ -1501,16 +1501,16 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
     // Start asynchronous tasks for the MAC computations
     auto future_tag_share_A_prime_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A_MAC)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A_MAC)), PP);
     });
     auto res_A1_MAC = future_data_A1_MAC.get();
     auto& data_A1_MAC = vms[8];
 
     auto future_tag_share_A1_prime_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A1_MAC)), PP);
     });
     auto future_balance_A_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
+        return mod(static_cast<int64_t>(PIRW::innerprodff31v(data_A1_MAC, ledger)), PP);
     });
 
     // Get the results of the MAC computations
@@ -1653,8 +1653,8 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    assert(t_reconstructed == 0);
     if (t_reconstructed == 0) {
         // Finalize the transaction after the MPC round / all checks have passed
-        ledger = PIRW::subvff31(ledger, data_A);
-        ledger = PIRW::addvff31(ledger, data_B);
+        PIRW::subvff31(ledger, data_A, ledger);
+        PIRW::addvff31(ledger, data_B, ledger);
 //        std::cout << "Transfer succeeded!" << std::endl;
     } else {
         std::cout << "Transfer failed! t_reconstructed not okay" << std::endl;
@@ -1691,6 +1691,6 @@ std::vector<uint32_t> Server::write(const std::vector<DPF::KeyShare>& key, std::
     auto res_A = future_res_A.get();
     auto& data_A = vms[0];
     //    ledger = PIRW::subvff31(ledger, data_A); // This is more efficient, but also don't want the optimizer to cheat when benchmarking and opt this out
-    auto res = PIRW::subvff31(ledger, data_A);
-    return std::move(res);
+    PIRW::subvff31(ledger, data_A, vms[1]);
+    return vms[1];
 }

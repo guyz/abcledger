@@ -17,6 +17,11 @@
 #include <string>
 #include "utils.h"
 #include <map>
+//#include "AlignedAllocator.h"
+
+//constexpr std::size_t Alignment = 64; // Change this to your desired alignment
+//using AlignedVector = std::vector<uint32_t, AlignedAllocator<uint32_t, Alignment>>;
+constexpr size_t alignment = 64; // Example alignment
 
 int test_hash_functions() {
     uint32_t r1 = rand();
@@ -1448,7 +1453,7 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         server = new Server(serverIndex, N);
     }
 
-    // Generating the underlying vectors..
+//     Generating the underlying vectors..
     std::array<std::vector<uint32_t>, 10> vms;
     std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10> vmsmulti;
     for (int i = 0; i < 10; i++) {
@@ -1459,6 +1464,25 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         }
     }
 
+
+//    std::array<std::vector<uint32_t>, 10> vms;
+//    std::array<std::array<std::vector<uint32_t>, 2 * N_SPLITS>, 10> vmsmulti;
+//
+//    for (int i = 0; i < 10; i++) {
+//        // Allocate aligned memory
+//        uint32_t* aligned_memory = static_cast<uint32_t*>(std::aligned_alloc(alignment, (1ULL << logN) * sizeof(uint32_t)));
+//
+//        // Create vector from aligned memory
+//        vms[i] = std::vector<uint32_t>(aligned_memory, aligned_memory + (1ULL << logN));
+//
+//        for (int j = 0; j < vmsmulti[i].size(); j++) {
+//            // Allocate aligned memory for each sub-vector
+//            uint32_t* aligned_sub_memory = static_cast<uint32_t*>(std::aligned_alloc(alignment, splitSize * sizeof(uint32_t)));
+//
+//            // Create sub-vector from aligned memory
+//            vmsmulti[i][j] = std::vector<uint32_t>(aligned_sub_memory, aligned_sub_memory + splitSize);
+//        }
+//    }
 
     for (auto benchmark : benchmarksToRun) {
         auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms, vmsmulti, logN);
@@ -1471,13 +1495,21 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         appendToCSV(BENCHMARK_NAMES[benchmark], serverIndex, logN, nBenchmarks, timePerIter);
     }
 
+//    // Free aligned memory
+//    for (int i = 0; i < 10; i++) {
+//        std::free(vms[i].data());
+//        for (int j = 0; j < vmsmulti[i].size(); j++) {
+//            std::free(vmsmulti[i][j].data());
+//        }
+//    }
+
     if (networkBenchmarks) {
         server->closeConnections();
         delete server;
     }
+
     std::cout << "Finished running all benchmarks!" << std::endl;
 }
-
 
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "

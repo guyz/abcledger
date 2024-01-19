@@ -23,7 +23,9 @@ set(SRCS
         Log.cpp
         PRNG.cpp
         dpf.cpp
-        hashdatastore.cpp)
+        hashdatastore.cpp
+        AlignedAllocator.cpp
+        AlignedAllocator.h)
 
 #set(CMAKE_C_FLAGS "-ffunction-sections -Wall -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -fopenmp -Wno-strict-overflow -Wno-ignored-attributes")
 set(CMAKE_C_FLAGS "-ffunction-sections -Wall -maes -msse2 -msse4.1 -mavx2 -mavx512f -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow -Wno-ignored-attributes")
