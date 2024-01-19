@@ -19,6 +19,7 @@ namespace PIRW {
 
     // Takes two vectors a, b, and returns a scalar c which is the inner product of the two
     uint32_t innerprodff31(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b);
+    uint32_t innerprodff31v(const uint32_t* a_start, const uint32_t* a_end, const uint32_t* b_start, const uint32_t* b_end);
     uint32_t innerprodff31v(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b);
 
     uint32_t sumvecff31(const std::vector<uint32_t>& a);

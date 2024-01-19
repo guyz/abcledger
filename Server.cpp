@@ -1482,43 +1482,131 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     });
 
 //    // Start asynchronous tasks for the rest of the computations
-    auto future_tag_share_A_prime = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A)), PP);
-    });
-    auto future_tag_share_A1_prime = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A1)), PP);
-    });
-    auto future_balance_A = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31v(data_A1, ledger)), PP);
-    });
+//    auto future_tag_share_A_prime = pool.submit_task([&] {
+//        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A)), PP);
+//    });
+//    auto future_tag_share_A1_prime = pool.submit_task([&] {
+//        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A1)), PP);
+//    });
+//    auto future_balance_A = pool.submit_task([&] {
+//        return mod(static_cast<int64_t>(PIRW::innerprodff31v(data_A1, ledger)), PP);
+//    });
+
+    int splitSize = N / N_SPLITS2;
+
+    // Parallel loop
+    std::vector<std::future<uint64_t>> futures1, futures2, futures3;
+    for (int i = 0; i < N_SPLITS2; i++) {
+
+        auto alpha_start = alphas.data() + i*splitSize;
+        auto alpha_end = alphas.data() + (i+1)*splitSize;
+        auto ledger_start = ledger.data() + i*splitSize;
+        auto ledger_end = ledger.data() + (i+1)*splitSize;
+        auto data_A_start = data_A.data() + i*splitSize;
+        auto data_A_end = data_A.data() + (i+1)*splitSize;
+        auto data_A1_start = data_A1.data() + i*splitSize;
+        auto data_A1_end = data_A1.data() + (i+1)*splitSize;
+
+        futures1.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A_start, data_A_end)), PP));
+        }));
+
+        futures2.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+        futures3.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(ledger_start, ledger_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+    }
+
+    // Wait for all futures to complete
+    uint64_t sum1 = 0, sum2 = 0, sum3 = 0;
+    for (auto& f : futures1) {
+        sum1 += f.get();
+    }
+
+    for (auto& f : futures2) {
+        sum2 += f.get();
+    }
+
+    for (auto& f : futures3) {
+        sum3 += f.get();
+    }
+
     // ... [other asynchronous tasks] ...
-    field tag_share_A_prime = future_tag_share_A_prime.get();
-    field tag_share_A1_prime = future_tag_share_A1_prime.get();
-    field balance_A = future_balance_A.get();
+    field tag_share_A_prime = sum1 % PP;
+    field tag_share_A1_prime = sum2 % PP;
+    field balance_A = sum3 % PP;
+//    field tag_share_A_prime_MAC = future_tag_share_A_prime.get();
+//    field tag_share_A1_prime_MAC = future_tag_share_A1_prime.get();
+//    field balance_A_MAC = future_balance_A.get();
+
 //    const auto& data_A_MAC = future_data_A_MAC.get();
     auto res_A_MAC = future_data_A_MAC.get();
     auto& data_A_MAC = vms[6];
-
-    // Start asynchronous tasks for the MAC computations
-    auto future_tag_share_A_prime_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A_MAC)), PP);
-    });
     auto res_A1_MAC = future_data_A1_MAC.get();
     auto& data_A1_MAC = vms[8];
 
-    auto future_tag_share_A1_prime_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A1_MAC)), PP);
-    });
-    auto future_balance_A_MAC = pool.submit_task([&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31v(data_A1_MAC, ledger)), PP);
-    });
+//     Start asynchronous tasks for the MAC computations
+//    auto future_tag_share_A_prime_MAC = pool.submit_task([&] {
+//        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A_MAC)), PP);
+//    });
+//    auto future_tag_share_A1_prime_MAC = pool.submit_task([&] {
+//        return mod(static_cast<int64_t>(PIRW::innerprodff31v(alphas, data_A1_MAC)), PP);
+//    });
+//    auto future_balance_A_MAC = pool.submit_task([&] {
+//        return mod(static_cast<int64_t>(PIRW::innerprodff31v(data_A1_MAC, ledger)), PP);
+//    });
 
     // Get the results of the MAC computations
-    field tag_share_A_prime_MAC = future_tag_share_A_prime_MAC.get();
-    field tag_share_A1_prime_MAC = future_tag_share_A1_prime_MAC.get();
-    field balance_A_MAC = future_balance_A_MAC.get();
+//    field tag_share_A_prime_MAC = future_tag_share_A_prime_MAC.get();
+//    field tag_share_A1_prime_MAC = future_tag_share_A1_prime_MAC.get();
+//    field balance_A_MAC = future_balance_A_MAC.get();
+    futures1.clear(); futures2.clear(); futures3.clear();
+    for (int i = 0; i < N_SPLITS2; i++) {
+        auto alpha_start = alphas.data() + i*splitSize;
+        auto alpha_end = alphas.data() + (i+1)*splitSize;
+        auto ledger_start = ledger.data() + i*splitSize;
+        auto ledger_end = ledger.data() + (i+1)*splitSize;
+        auto data_A_MAC_start = data_A_MAC.data() + i*splitSize;
+        auto data_A_MAC_end = data_A_MAC.data() + (i+1)*splitSize;
+        auto data_A1_MAC_start = data_A1_MAC.data() + i*splitSize;
+        auto data_A1_MAC_end = data_A1_MAC.data() + (i+1)*splitSize;
 
+        futures1.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A_MAC_start, data_A_MAC_end)), PP));
+        }));
 
+        futures2.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A1_MAC_start, data_A1_MAC_end)), PP));
+        }));
+
+        futures3.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(ledger_start, ledger_end, data_A1_MAC_start, data_A1_MAC_end)), PP));
+        }));
+
+    }
+
+    // Wait for all futures to complete
+    sum1 = 0; sum2 = 0; sum3 = 0;
+    for (auto& f : futures1) {
+        sum1 += f.get();
+    }
+
+    for (auto& f : futures2) {
+        sum2 += f.get();
+    }
+
+    for (auto& f : futures3) {
+        sum3 += f.get();
+    }
+
+    // ... [other asynchronous tasks] ...
+    field tag_share_A_prime_MAC = sum1 % PP;
+    field tag_share_A1_prime_MAC = sum2 % PP;
+    field balance_A_MAC = sum3 % PP;
 
     outputs = multfproduct_open({ tag_share_A_prime, tag_share_A1_prime, balance_A, tag_share_A_prime_MAC, tag_share_A1_prime_MAC, balance_A_MAC });
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 3);
@@ -1653,6 +1741,9 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    assert(t_reconstructed == 0);
     if (t_reconstructed == 0) {
         // Finalize the transaction after the MPC round / all checks have passed
+
+        // NOTE: parallelizing these two improves roughly 3ms for 2^22. Probably splitting to chunks
+        // and parallelizing each chunk explicitly would improve quite a bit. Also and especially for innerproduct
         PIRW::subvff31(ledger, data_A, ledger);
         PIRW::addvff31(ledger, data_B, ledger);
 //        std::cout << "Transfer succeeded!" << std::endl;

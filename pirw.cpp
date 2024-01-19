@@ -95,29 +95,35 @@ namespace PIRW {
         return inner_product % PP;
     }
 
-    uint32_t innerprodff31v(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
-        if (a.size() != b.size()) {
-            throw std::invalid_argument("Vectors must have the same size");
+    uint32_t innerprodff31v(const uint32_t* a_start, const uint32_t* a_end, const uint32_t* b_start, const uint32_t* b_end) {
+        // Check if the ranges have the same size
+        if (a_end - a_start != b_end - b_start) {
+            throw std::invalid_argument("Vector ranges must have the same size");
         }
 
         uint64_t inner_product = 0;
+        const uint32_t* a_ptr = a_start;
+        const uint32_t* b_ptr = b_start;
 
-        for (size_t i = 0; i < a.size(); i += 8) {
-            __m256i vec_a256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&a[i]));
-            __m256i vec_b256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(&b[i]));
-//            __m256i vec_a256 = _mm256_load_si256(reinterpret_cast<const __m256i *>(&a[i]));
-//            __m256i vec_b256 = _mm256_load_si256(reinterpret_cast<const __m256i *>(&b[i]));
-            __m512i vec_a = _mm512_cvtepu32_epi64(vec_a256); // Zero extend to be 64-bits
+        while (a_ptr < a_end) {
+            __m256i vec_a256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(a_ptr));
+            __m256i vec_b256 = _mm256_loadu_si256(reinterpret_cast<const __m256i *>(b_ptr));
+            __m512i vec_a = _mm512_cvtepu32_epi64(vec_a256); // Zero extend to 64-bits
             __m512i vec_b = _mm512_cvtepu32_epi64(vec_b256);
-
-//            __m512i vec_c = _mm512_mullox_epi64(vec_a, vec_b); // This intrinsic generates a sequence of instructions, which may perform worse than a native instruction. Consider the performance impact of this intrinsic.
             __m512i vec_c = _mm512_mul_epu32(vec_a, vec_b);
 
-//            inner_product = modu(inner_product + vector_sum(vec_c), PP);
             inner_product = (inner_product + vector_sum(vec_c)) % PP;
+
+            // Advance pointers by 8 elements (assuming the vectors are properly aligned and have sufficient elements)
+            a_ptr += 8;
+            b_ptr += 8;
         }
 
         return inner_product % PP;
+    }
+
+    uint32_t innerprodff31v(const std::vector<uint32_t>& a, const std::vector<uint32_t>& b) {
+        return innerprodff31v(a.data(), a.data() + a.size(), b.data(), b.data() + b.size());
     }
 
     // Sums a vector
