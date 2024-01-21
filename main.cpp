@@ -222,6 +222,43 @@ std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> loadPair(const std::stri
     return {first, second};
 }
 
+void writePairMulti(const std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& pairs, const std::string& filename) {
+    std::ofstream outFile(filename, std::ios::binary);
+    if (!outFile.is_open()) {
+        throw std::runtime_error("Unable to open file for writing");
+    }
+
+    for (const auto& pair : pairs) {
+        // Serialize first DeferredKeyShare
+        serializeDeferredKeyShare(pair.first, outFile);
+
+        // Serialize second DeferredKeyShare
+        serializeDeferredKeyShare(pair.second, outFile);
+    }
+
+    outFile.close();
+}
+
+std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> loadPairMulti(const std::string& filename) {
+    std::ifstream inFile(filename, std::ios::binary);
+    if (!inFile.is_open()) {
+        throw std::runtime_error("Unable to open file for reading");
+    }
+
+    std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> pairs;
+    while (inFile.peek() != EOF) {
+        // Deserialize first DeferredKeyShare
+        DPF::DeferredKeyShare first = deserializeDeferredKeyShare(inFile);
+
+        // Deserialize second DeferredKeyShare
+        DPF::DeferredKeyShare second = deserializeDeferredKeyShare(inFile);
+
+        pairs.emplace_back(first, second);
+    }
+
+    inFile.close();
+    return pairs;
+}
 
 bool fileExists(const std::string& fileName) {
     return std::filesystem::exists(fileName);
@@ -573,6 +610,25 @@ void test_client_deferred(int serverIndex, int logN) {
     int recvIndex = 20;
 
     // Load/generate data
+
+#ifdef ENABLE_MULTI
+    std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> kmsAdefer_i;
+
+    auto kmsAdefer = DPF::DeferredGenShamirMulti(senderIndex, logN);
+    auto fn = DATA_DIR + "kmsAdefer" + std::to_string(serverIndex) + ".txt";
+    if (fileExists(fn)) {
+        kmsAdefer_i = loadPairMulti(fn);
+    } else {
+        // File does not exist
+        for (size_t i = 0; i < kmsAdefer.size(); ++i) {
+            auto curr_fn = DATA_DIR + "kmsAdefer" + std::to_string(i) + ".txt";
+            writePairMulti(kmsAdefer[i], curr_fn);
+        }
+
+        kmsAdefer_i = kmsAdefer[serverIndex];
+    }
+
+#else
     std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i;
 
     auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN);
@@ -588,7 +644,7 @@ void test_client_deferred(int serverIndex, int logN) {
 
         kmsAdefer_i = kmsAdefer[serverIndex];
     }
-
+#endif
 //    field beta = 55; Below are shares of shares of beta
     std::vector<field> beta0 = {847777152, 1485437038, 2123096924};
     std::vector<field> beta1 = {1261625909, 1239392756, 1217159603};
@@ -615,8 +671,8 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
     auto kmsA = DPF::GenShamirMulti(senderIndex, logN, amount, false);
     auto kmsA1 = DPF::GenShamirMulti(senderIndex, logN, 1, false);
     auto kmsB = DPF::GenShamirMulti(recvIndex, logN, amount, true);
-    auto kmsAdefer = DPF::DeferredGenShamir(senderIndex, logN); // TODO: change
-    auto kmsA1defer = DPF::DeferredGenShamir(senderIndex, logN);  // TODO: change
+    auto kmsAdefer = DPF::DeferredGenShamirMulti(senderIndex, logN); // TODO: change
+    auto kmsA1defer = DPF::DeferredGenShamirMulti(senderIndex, logN);  // TODO: change
 #else
     auto kmsA = DPF::GenShamir(senderIndex, logN, amount, false);
     auto kmsA1 = DPF::GenShamir(senderIndex, logN, 1, false);
@@ -631,10 +687,10 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
         auto curr_fn1 = DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(i) + ".txt";
 
 #ifdef ENABLE_MULTI
-//        writePairMulti(kmsAdefer[i], curr_fn);
-//        writePairMulti(kmsA1defer[i], curr_fn1);
-        writePair(kmsAdefer[i], curr_fn); // TODO: change
-        writePair(kmsA1defer[i], curr_fn1); // TODO: change
+        writePairMulti(kmsAdefer[i], curr_fn);
+        writePairMulti(kmsA1defer[i], curr_fn1);
+//        writePair(kmsAdefer[i], curr_fn); // TODO: change
+//        writePair(kmsA1defer[i], curr_fn1); // TODO: change
 #else
         writePair(kmsAdefer[i], curr_fn);
         writePair(kmsA1defer[i], curr_fn1);
@@ -652,6 +708,7 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
     std::vector<std::pair<int64_t, int64_t>> tag_A1_shares = gen_shares(3, 2, tag_A1, PP);
 
 //  Below are shares of shares of amount and ones
+// TODO: fix writeVector for multi..
     std::vector<std::pair<int64_t, int64_t>> amount_shares = gen_shares(3, 2, amount, PP);
     std::vector<std::pair<int64_t, int64_t>> beta0_shares = gen_shares(3, 2, amount_shares[0].second, PP);
     std::vector<std::pair<int64_t, int64_t>> beta1_shares = gen_shares(3, 2, mod(amount_shares[1].second*MODINV2, PP), PP);
@@ -687,14 +744,17 @@ void generate_client_transfer_request(int logN, int reqNumber, std::vector<uint3
 struct ClientTransferRequest {
 #ifdef ENABLE_MULTI
     // TODO: complete this
-    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+    std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> kmsAdefer_i, kmsA1defer_i;
+//    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+    std::vector<field> beta0, beta1, beta2, one0, one1, one2;
 #else
     std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> kmsAdefer_i, kmsA1defer_i;
+    field beta0, beta1, beta2, one0, one1, one2;
 #endif
     std::vector<DPF::KeyShare> kmsA_i;
     std::vector<DPF::KeyShare> kmsA1_i;
     std::vector<DPF::KeyShare> kmsB_i;
-    field tag_A_share, tag_A1_share, beta0, beta1, beta2, one0, one1, one2;
+    field tag_A_share, tag_A1_share;
 };
 
 ClientTransferRequest load_client_transfer_request(int reqNumber, int idx) {
@@ -702,8 +762,8 @@ ClientTransferRequest load_client_transfer_request(int reqNumber, int idx) {
 
 #ifdef ENABLE_MULTI
     // TODO: complete this
-    clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
-    clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+    clientTransferRequest.kmsAdefer_i = loadPairMulti(DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
+    clientTransferRequest.kmsA1defer_i = loadPairMulti(DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
 #else
     clientTransferRequest.kmsAdefer_i = loadPair(DATA_DIR + "transfer_kmsAdefer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
     clientTransferRequest.kmsA1defer_i = loadPair(DATA_DIR + "transfer_kmsA1defer" + std::to_string(reqNumber) + "_" + std::to_string(idx) + ".txt");
@@ -727,12 +787,33 @@ ClientTransferRequest load_client_transfer_request(int reqNumber, int idx) {
 
     clientTransferRequest.tag_A_share = otherdata[0];
     clientTransferRequest.tag_A1_share = otherdata[1];
+
+#ifdef ENABLE_MULTI
+    // TODO: this doesn't work, need to actually load a proper vector for each..
+    clientTransferRequest.beta0 = {};
+    clientTransferRequest.beta1 = {};
+    clientTransferRequest.beta2 = {};
+    clientTransferRequest.one0 = {};
+    clientTransferRequest.one1 = {};
+    clientTransferRequest.one2 = {};
+
+    for (int i = 0; i < N_SPLITS; i++) {
+        clientTransferRequest.beta0.push_back(otherdata[2]);
+        clientTransferRequest.beta1.push_back(otherdata[3]);
+        clientTransferRequest.beta2.push_back(otherdata[4]);
+        clientTransferRequest.one0.push_back(otherdata[5]);
+        clientTransferRequest.one1.push_back(otherdata[6]);
+        clientTransferRequest.one2.push_back(otherdata[7]);
+    }
+
+#else
     clientTransferRequest.beta0 = otherdata[2];
     clientTransferRequest.beta1 = otherdata[3];
     clientTransferRequest.beta2 = otherdata[4];
     clientTransferRequest.one0 = otherdata[5];
     clientTransferRequest.one1 = otherdata[6];
     clientTransferRequest.one2 = otherdata[7];
+#endif
 
     return clientTransferRequest;
 }
@@ -898,8 +979,9 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
                 break;
             case 9:
                 time1 = std::chrono::high_resolution_clock::now();
-                server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
-                                        request.one1, request.one2, vms);
+                // TODO: reenable.. working on deferred..
+//                server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
+//                                        request.one1, request.one2, vms);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balanceMalicious" << std::endl;
                 break;
@@ -1089,9 +1171,10 @@ void test_client_malicious(int serverIndex, int logN) {
     server.transfer(kmsA_i, kmsA1_i, kmsB_i, tag_A_share, tag_A1_share, vms, vmsmulti);
 
     // Test malicious
-    server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share,
-                                 beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex],
-                                 one1[serverIndex], one2[serverIndex], vms, vmsmulti);
+    // TODO: fix this. Had to disable when fixing multi deferred..
+//    server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share,
+//                                 beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex],
+//                                 one1[serverIndex], one2[serverIndex], vms, vmsmulti);
 
     std::cout << "Done" << std::endl;
 }
@@ -1151,7 +1234,9 @@ void deconstruct_deferreddpf(int logN, int serverIndex) {
     std::vector<field> beta1 = {1261625909, 1239392756, 1217159603};
     std::vector<field> beta2 = {1923965764, 58674887, 340867657};
 
+#ifndef ENABLE_MULTI
     server.evalDeferredTest(kmsA1defer[serverIndex], beta0[serverIndex], beta1[serverIndex], beta2[serverIndex]);
+#endif
 
 }
 

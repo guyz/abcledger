@@ -94,6 +94,7 @@ namespace DPF {
     int EvalShamirMulti(const std::vector<KeyShare>& key, std::array<std::vector<uint32_t>, 2*N_SPLITS>& vms, std::vector<uint32_t>& out, size_t logn, uint64_t party_index, bool verifiable);
 
     std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> DeferredGenShamir(size_t alpha, size_t logn);
+    std::vector<std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>>> DeferredGenShamirMulti(size_t alpha, size_t logn);
 
     // Fast ORAM (increases the degree to 2
     std::vector<std::vector<KeyShare>> GenFast(size_t alpha, size_t logn, uint32_t m);

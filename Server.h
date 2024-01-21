@@ -17,7 +17,7 @@
 #include <cstring>
 #include <iostream>
 #include <sstream>
-#include <variant>
+#include <variant>def
 #include <tuple>
 #include <type_traits>
 #include "utils.h"
@@ -35,8 +35,19 @@ public:
                   std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti);
 
     uint32_t balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share, std::array<std::vector<uint32_t>, 10>& vms);
-    void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
-    std::vector<DPF::KeyShare> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
+#ifdef ENABLE_MULTI
+    void evalDeferredTest(std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& key, field beta_0, field beta_1, field beta_2);
+    void transferMalicious(const std::vector<DPF::KeyShare>& key_A,
+                                   std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& deferredKey_A,
+                                   const std::vector<DPF::KeyShare>& key_A1,
+                                   std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& deferredKey_A1,
+                                   const std::vector<DPF::KeyShare>& key_B,
+                                   field tag_A_share, field tag_A1_share,
+                                   std::vector<field> amount_0, std::vector<field> amount_1, std::vector<field> amount_2,
+                                   std::vector<field> one_0, std::vector<field> one_1, std::vector<field> one_2,
+                                   std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti);
+#else
+        void evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
     void transferMalicious(const std::vector<DPF::KeyShare>& key_A,
                                    std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A,
                                    const std::vector<DPF::KeyShare>& key_A1,
@@ -46,6 +57,9 @@ public:
                                    field amount_0, field amount_1, field amount_2,
                                    field one_0, field one_1, field one_2,
                                    std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti);
+#endif
+    std::vector<DPF::KeyShare> evalDeferred(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2);
+//    std::vector<DPF::KeyShare> evalDeferredMulti(std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& key, field beta_0, field beta_1, field beta_2);
 
     uint32_t balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey, uint32_t tag_share,
                               field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms);
@@ -216,13 +230,13 @@ private:
     field SinglePRSS();
     std::pair<field, field> SinglePRSS2();
     field SinglePRZS();
-    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> AtoB(field beta_0, field beta_1, field beta_2);
+    std::vector<std::vector<std::vector<std::pair<uint8_t, uint8_t>>>> AtoB(std::vector<field> betas_0, std::vector<field> betas_1, std::vector<field> betas_2);
     std::vector<field> multgate_helper(std::vector<field> inputs1, std::vector<field> inputs2);
     std::vector<field> multfproduct_open(std::vector<field> inputs);
 
     void reshare(field beta);
     std::vector<DPF::KeyShare> fixCodeword(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> &key, field beta_0, field beta_1, field beta_2);
-
+    std::vector<DPF::KeyShare> fixCodeword_helper(const std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> &key, const std::vector<field> betas_0, const std::vector<field> betas_1, const std::vector<field> betas_2);
 //    int getPair(const std::vector<DPF::KeyShare> &fullkey, std::vector<uint32_t>& vm0, std::vector<uint32_t>& vm1) const;
 };
 

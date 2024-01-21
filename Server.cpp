@@ -901,282 +901,204 @@ std::vector<int64_t> Server::reconstruct_helper(const std::vector<field>& shares
     return res;
 }
 
-std::vector<std::vector<std::pair<uint8_t, uint8_t>>> Server::AtoB(field beta_0, field beta_1, field beta_2) {
+std::vector<std::vector<std::vector<std::pair<uint8_t, uint8_t>>>> Server::AtoB(std::vector<field> betas_0, std::vector<field> betas_1, std::vector<field> betas_2) {
     // TODO: real AtoB
     // TODO: receive a vector of beta_0, beta_1, beta_2 of 4 (or 2) values each. For now, only mock it up in the first value
     // Fake zero-sharings of random values
+    int n = betas_0.size();
 
     auto inputs = std::make_tuple(
-            beta_0,
-            beta_1,
-            beta_2
+            betas_0,
+            betas_1,
+            betas_2
     );
 
     // Run the round of communication
     auto [output1, output2] = run_round(inputs);
-    std::vector<field> share0 = {beta_0, beta_1, beta_2};
-    std::vector<field> share1 = {std::get<0>(output1), std::get<1>(output1), std::get<2>(output1)};
-    std::vector<field> share2 = {std::get<0>(output2), std::get<1>(output2), std::get<2>(output2)};
+    std::vector<std::vector<std::vector<std::pair<uint8_t, uint8_t>>>> res = {};
+    for (int i = 0; i < n; i++) {
+        auto share0 = {betas_0[i], betas_1[i], betas_2[i]};
+        auto outputs1_0 = std::get<0>(output1);
+        auto outputs1_1 = std::get<1>(output1);
+        auto outputs1_2 = std::get<2>(output1);
+        auto outputs2_0 = std::get<0>(output2);
+        auto outputs2_1 = std::get<1>(output2);
+        auto outputs2_2 = std::get<2>(output2);
 
-    auto betas = reconstruct_helper(share0, share1, share2);
-    auto b0 = convertToUint8Vector(betas[0], 16);
-    auto b1 = convertToUint8Vector(betas[1], 16);
-    auto b2 = convertToUint8Vector(betas[2], 16);
+        auto share1 = {outputs1_0[i], outputs1_1[i], outputs1_2[i]};
+        auto share2 = {outputs2_0[i], outputs2_1[i], outputs2_2[i]};
 
-    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> betas_shares = {{}, {}, {}};
+        auto betas = reconstruct_helper(share0, share1, share2);
+        auto b0 = convertToUint8Vector(betas[0], 16);
+        auto b1 = convertToUint8Vector(betas[1], 16);
+        auto b2 = convertToUint8Vector(betas[2], 16);
 
-    for (int i = 0; i < 16; i++) {
-        uint8_t r1 = XORPRZS();
-        uint8_t r2 = XORPRZS();
-        uint8_t r3 = XORPRZS();
+        std::vector<std::vector<std::pair<uint8_t, uint8_t>>> betas_shares = {{}, {}, {}};
+        for (int j = 0; j < 16; j++) {
+            uint8_t r1 = XORPRZS();
+            uint8_t r2 = XORPRZS();
+            uint8_t r3 = XORPRZS();
 
-        uint8_t v0 = b0[i] ^ r1;
-        uint8_t v1 = b1[i] ^ r2;
-        uint8_t v2 = b2[i] ^ r3;
+            uint8_t v0 = b0[j] ^ r1;
+            uint8_t v1 = b1[j] ^ r2;
+            uint8_t v2 = b2[j] ^ r3;
 
 //        uint8_t v0 = b0[i] ^ XORRAND0[i][server_index];
 //        uint8_t v1 = b1[i] ^ XORRAND1[i][server_index];
 //        uint8_t v2 = b2[i] ^ XORRAND2[i][server_index];
 
-        betas_shares[0].push_back({server_index + 1, v0});
-        betas_shares[1].push_back({server_index + 1, v1});
-        betas_shares[2].push_back({server_index + 1, v2});
+            betas_shares[0].push_back({server_index + 1, v0});
+            betas_shares[1].push_back({server_index + 1, v1});
+            betas_shares[2].push_back({server_index + 1, v2});
+        }
+
+        res.push_back(betas_shares);
     }
 
-    return betas_shares;
+    return res;
 }
 
 std::vector<DPF::KeyShare> Server::fixCodeword(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare> &key, field beta_0, field beta_1, field beta_2) {
+    return fixCodeword_helper({key}, {beta_0}, {beta_1}, {beta_2});
+}
+
+std::vector<DPF::KeyShare> Server::fixCodeword_helper(const std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>> &key, const std::vector<field> betas_0, const std::vector<field> betas_1, const std::vector<field> betas_2) {
     // TODO: MAC or verify interpolation for malicious security, review this entire function
+    int n = betas_0.size();
 
-    auto betas = AtoB(beta_0, beta_1, beta_2);
+//    auto betas = AtoB({beta_0}, {beta_1}, {beta_2});
+    auto betas = AtoB(betas_0, betas_1, betas_2);
+    std::vector<uint8_t> ocw0s_serialized_share = {}, ocw1s_serialized_share = {}; // TODO: fixed allocator?
+    int splitpoint = 0;
 
-    std::vector<std::pair<uint8_t, uint8_t>> beta0 = betas[0];
-    std::vector<std::pair<uint8_t, uint8_t>> beta1 = betas[1];
-    std::vector<std::pair<uint8_t, uint8_t>> beta2 = betas[2];
-
+    // TODO: need a separate v0_share for each
     auto v0_share = fake_xor_rand(server_index); // TODO: really Frand(xor) - still need to fix this..
-    auto v2_share = xor_shares_vector(beta0, v0_share);
+    std::vector<std::vector<std::pair<uint8_t, uint8_t>>> v2_shares;
 
-//    debugPrint << "beta0: ";
-//    printVector(extract_values_gf256(beta0));
-//    debugPrint << "beta1: ";
-//    printVector(extract_values_gf256(beta1));
-//    debugPrint << "beta2: ";
-//    printVector(extract_values_gf256(beta2));
+    for (int i = 0; i < n; i++) {
+        std::vector<std::pair<uint8_t, uint8_t>> beta0 = betas[i][0];
+        std::vector<std::pair<uint8_t, uint8_t>> beta1 = betas[i][1];
+        std::vector<std::pair<uint8_t, uint8_t>> beta2 = betas[i][2];
 
-    auto beta01 = xor_shares_vector(beta0, beta1);
-    auto beta12 = xor_shares_vector(beta1, beta2);
+        auto v2_share = xor_shares_vector(beta0, v0_share);
+        v2_shares.push_back(v2_share);
 
+        auto beta01 = xor_shares_vector(beta0, beta1);
+        auto beta12 = xor_shares_vector(beta1, beta2);
 
-//    // TODO: remove temp
-//
-//    auto vm2tmp = DPF::EvalFull8M(key.second.key, log2N, 0);
-//    for (int i = 0; i<10; i++) {
-//        debugPrint << "ZeroDPF (1 - second) at " << i << ": " << vm2tmp[i] << std::endl;
-//    }
-//
-//    uint8_t t0_0tmp = key.first.t0_share.second;
-//    uint8_t t0_1tmp = key.second.t0_share.second;
-//    std::vector<uint8_t> t0_0tmp_vec;
-//    std::vector<uint8_t> t0_1tmp_vec;
-//
-//    t0_0tmp_vec.push_back(t0_0tmp);
-//    t0_1tmp_vec.push_back(t0_1tmp);
-//
-//    auto inputstmp = std::make_tuple(
-//            extract_values_gf256(beta0),
-//            extract_values_gf256(beta1),
-//            extract_values_gf256(beta2),
-//            extract_values_gf256(beta01),
-//            extract_values_gf256(beta12),
-//            t0_0tmp_vec,
-//            t0_1tmp_vec,
-//            extract_values_gf256(key.first.s0_share),
-//            extract_values_gf256(key.second.s0_share),
-//            extract_values_gf256(key.first.s1_share),
-//            extract_values_gf256(key.second.s1_share)
-//    );
-//
-//    // Run the round of communication
-//    auto [output1tmp, output2tmp] = run_round(inputstmp);
-//
-//    std::vector<uint8_t> share1tmp = std::get<0>(output1tmp);
-//    std::vector<uint8_t> share2tmp = std::get<0>(output2tmp);
-//    auto beta0tmp = reconstruct_helper_gf256(extract_values_gf256(beta0), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<1>(output1tmp);
-//    share2tmp = std::get<1>(output2tmp);
-//    auto beta1tmp = reconstruct_helper_gf256(extract_values_gf256(beta1), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<2>(output1tmp);
-//    share2tmp = std::get<2>(output2tmp);
-//    auto beta2tmp = reconstruct_helper_gf256(extract_values_gf256(beta2), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<3>(output1tmp);
-//    share2tmp = std::get<3>(output2tmp);
-//    auto beta01tmp = reconstruct_helper_gf256(extract_values_gf256(beta01), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<4>(output1tmp);
-//    share2tmp = std::get<4>(output2tmp);
-//    auto beta12tmp = reconstruct_helper_gf256(extract_values_gf256(beta12), share1tmp, share2tmp);
-//
-//    auto tshare1 = std::get<5>(output1tmp);
-//    auto tshare2 = std::get<5>(output2tmp);
-//
-//    std::vector<uint8_t> ytmp(3, 0);
-//
-//    ytmp[server_index] = t0_0tmp;
-//    ytmp[serverIndex1] = tshare1[0];
-//    ytmp[serverIndex2] = tshare2[0];
-//    auto sharestmp = encode_to_shares_gf256(ytmp);
-//
-//    uint8_t t0tmp = reconstruct_gf256(sharestmp);
-//
-//    tshare1 = std::get<6>(output1tmp);
-//    tshare2 = std::get<6>(output2tmp);
-//
-//    ytmp[server_index] = t0_1tmp;
-//    ytmp[serverIndex1] = tshare1[0];
-//    ytmp[serverIndex2] = tshare2[0];
-//    sharestmp = encode_to_shares_gf256(ytmp);
-//
-//    uint8_t t1tmp = reconstruct_gf256(sharestmp);
-//
-//    share1tmp = std::get<7>(output1tmp);
-//    share2tmp = std::get<7>(output2tmp);
-//    auto s0tmp = reconstruct_helper_gf256(extract_values_gf256(key.first.s0_share), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<8>(output1tmp);
-//    share2tmp = std::get<8>(output2tmp);
-//    auto s1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s0_share), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<9>(output1tmp);
-//    share2tmp = std::get<9>(output2tmp);
-//    auto s1_0tmp = reconstruct_helper_gf256(extract_values_gf256(key.first.s1_share), share1tmp, share2tmp);
-//
-//    share1tmp = std::get<10>(output1tmp);
-//    share2tmp = std::get<10>(output2tmp);
-//    auto s1_1tmp = reconstruct_helper_gf256(extract_values_gf256(key.second.s1_share), share1tmp, share2tmp);
-//
-//    debugPrint << "t0 (0) reconstructed: " << static_cast<int>(t0tmp) << ", t0 (1): " << static_cast<int>(t1tmp) << std::endl;
-//
-//    debugPrint << "beta0 reconstructed: ";
-//    printVector(beta0tmp);
-//    debugPrint << "beta1 reconstructed: ";
-//    printVector(beta1tmp);
-//    debugPrint << "beta2 reconstructed: ";
-//    printVector(beta2tmp);
-//    debugPrint << "beta0 XOR beta1 reconstructed: ";
-//    printVector(beta01tmp);
-//    debugPrint << "beta1 XOR beta2 reconstructed: ";
-//    printVector(beta12tmp);
-//    debugPrint << "s0 (0) reconstructed: ";
-//    printVector(s0tmp);
-//    debugPrint << "s0 (1) reconstructed: ";
-//    printVector(s1tmp);
-//    debugPrint << "s1 (0) reconstructed: ";
-//    printVector(s1_0tmp);
-//    debugPrint << "s1 (1) reconstructed: ";
-//    printVector(s1_1tmp);
-    // END REMOVE TEMP
+        auto s01 = xor_shares_vector(key[i].first.s0_share, key[i].first.s1_share);
 
+        auto ocw0_share = xor_shares_vector(s01, beta01);
+        s01 = xor_shares_vector(key[i].second.s0_share, key[i].second.s1_share);
+        auto ocw1_share = xor_shares_vector(s01, beta12);
 
-//    debugPrint << "beta01: ";
-//    printVector(extract_values_gf256(beta01));
-//    debugPrint << "beta12: ";
-//    printVector(extract_values_gf256(beta12));
-
-    auto s01 = xor_shares_vector(key.first.s0_share, key.first.s1_share);
-//    debugPrint << "s0 xor s1 for DPF0: ";
-//    printVector(extract_values_gf256(s01));
-    auto ocw0_share = xor_shares_vector(s01, beta01);
-    s01 = xor_shares_vector(key.second.s0_share, key.second.s1_share);
-    auto ocw1_share = xor_shares_vector(s01, beta12);
-//    debugPrint << "s0 xor s1 for DPF1: ";
-//    printVector(extract_values_gf256(beta2));
-
-    std::vector<uint8_t> ocw0_serialized_share = extract_values_gf256(ocw0_share);
-    std::vector<uint8_t> ocw1_serialized_share = extract_values_gf256(ocw1_share);
+        std::vector<uint8_t> ocw0_serialized_share = extract_values_gf256(ocw0_share);
+        std::vector<uint8_t> ocw1_serialized_share = extract_values_gf256(ocw1_share);
+        ocw0s_serialized_share.insert(ocw0s_serialized_share.end(), ocw0_serialized_share.begin(), ocw0_serialized_share.end());
+        ocw1s_serialized_share.insert(ocw1s_serialized_share.end(), ocw1_serialized_share.begin(), ocw1_serialized_share.end());
+        splitpoint = ocw0_serialized_share.size();
+    }
 
     auto inputs = std::make_tuple(
-            ocw0_serialized_share,
-            ocw1_serialized_share
+            ocw0s_serialized_share,
+            ocw1s_serialized_share
     );
 
     // Run the round of communication
     auto [output1, output2] = run_round(inputs);
-    std::vector<uint8_t> share1 = std::get<0>(output1);
-    std::vector<uint8_t> share2 = std::get<0>(output2);
-    auto ocw0 = reconstruct_helper_gf256(ocw0_serialized_share, share1, share2);
 
-    share1 = std::get<1>(output1);
-    share2 = std::get<1>(output2);
-    auto ocw1 = reconstruct_helper_gf256(ocw1_serialized_share, share1, share2);
+    std::vector<uint8_t> z0_shares = {}, z1_shares = {}; // TODO: fixed allocator?
+    std::vector<std::vector<uint8_t>> ocws0 = {}, ocws1 = {}; // TODO: fixed allocator?
+    for (int i = 0; i < n; i++) {
+        auto v1 = std::get<0>(output1);
+        auto v2 = std::get<0>(output2);
+        std::vector<uint8_t> share1(v1.begin() + i*splitpoint, v1.begin() + (i + 1)*splitpoint);
+        std::vector<uint8_t> share2(v2.begin() + i*splitpoint, v2.begin() + (i + 1)*splitpoint);
+        std::vector<uint8_t> ocw0_serialized_share(ocw0s_serialized_share.begin() + i*splitpoint, ocw0s_serialized_share.begin() + (i + 1)*splitpoint);
+        auto ocw0 = reconstruct_helper_gf256(ocw0_serialized_share, share1, share2);
+        ocws0.push_back(ocw0);
 
-//     Debug info
-//    debugPrint << "ocw0: ";
-//    for (int i = 0; i < ocw0.size(); i++) {
-//        debugPrint << static_cast<int>(ocw0[i]) << ", ";
-//    }
-//    debugPrint << std::endl;
-//
-//    debugPrint << "ocw1: ";
-//    for (int i = 0; i < ocw1.size(); i++) {
-//        debugPrint << static_cast<int>(ocw1[i]) << ", ";
-//    }
-//    debugPrint << std::endl;
+        v1 = std::get<1>(output1);
+        v2 = std::get<1>(output2);
+        share1.assign(v1.begin() + i*splitpoint, v1.begin() + (i + 1)*splitpoint);
+        share2.assign(v2.begin() + i*splitpoint, v2.begin() + (i + 1)*splitpoint);
+        std::vector<uint8_t> ocw1_serialized_share(ocw1s_serialized_share.begin() + i*splitpoint, ocw1s_serialized_share.begin() + (i + 1)*splitpoint);
+        auto ocw1 = reconstruct_helper_gf256(ocw1_serialized_share, share1, share2);
+        ocws1.push_back(ocw1);
 
-    uint8_t t0_0 = key.first.t0_share.second;
-    uint8_t t0_1 = key.second.t0_share.second;
-    std::vector<std::pair<uint8_t, uint8_t>> tocw0, tocw1;
-    for (int i = 0; i < 16; i++) {
-        // Conditional addition of ocw (i.e., [t] * ocw)
-        tocw0.push_back(std::make_pair( server_index + 1, t0_0 & ocw0[i]) ); // TODO: fix this
-        tocw1.push_back(std::make_pair( server_index + 1, t0_1 & ocw1[i]) ); // TODO: fix this
+        uint8_t t0_0 = key[i].first.t0_share.second;
+        uint8_t t0_1 = key[i].second.t0_share.second;
+        std::vector<std::pair<uint8_t, uint8_t>> tocw0, tocw1;
+        for (int j = 0; j < 16; j++) {
+            // Conditional addition of ocw (i.e., [t] * ocw)
+            tocw0.push_back(std::make_pair( server_index + 1, t0_0 & ocw0[j]) );
+            tocw1.push_back(std::make_pair( server_index + 1, t0_1 & ocw1[j]) );
+        }
+
+        auto v0s0_0 = xor_shares_vector(v0_share, key[i].first.s0_share);
+        auto v2s0_1 = xor_shares_vector(v2_shares[i], key[i].second.s0_share);
+
+        auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw0));
+        auto z1_share = extract_values_gf256(xor_shares_vector(v2s0_1, tocw1));
+
+        z0_shares.insert(z0_shares.end(), z0_share.begin(), z0_share.end());
+        z1_shares.insert(z1_shares.end(), z1_share.begin(), z1_share.end());
+        splitpoint = z0_shares.size();
     }
 
-    auto v0s0_0 = xor_shares_vector(v0_share, key.first.s0_share);
-    auto v2s0_1 = xor_shares_vector(v2_share, key.second.s0_share);
-//    auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw_fake)); // TODO: these are temp
-//    auto z1_share = extract_values_gf256(xor_shares_vector(v2s0_1, tocw1_fake)); // TODO: this works, which prob means I am taking the wrong t's. Clean up and understand - can print out whatever shamir eval gets as the right t.. or simply do LSB of the seeds..
-
-    auto z0_share = extract_values_gf256(xor_shares_vector(v0s0_0, tocw0)); // TODO: reenable
-    auto z1_share = extract_values_gf256(xor_shares_vector(v2s0_1, tocw1)); // TODO: reenable
-
     auto inputs2 = std::make_tuple(
-            z0_share,
-            z1_share
+            z0_shares,
+            z1_shares
     );
 
     // Run the round of communication
     auto [output11, output12] = run_round(inputs2);
-    share1 = std::get<0>(output11);
-    share2 = std::get<0>(output12);
-    auto z0 = reconstruct_helper_gf256(z0_share, share1, share2);
+    std::vector<DPF::KeyShare> keys;
+    for (int i = 0; i < n; i++) {
+        auto v1 = std::get<0>(output11);
+        auto v2 = std::get<0>(output12);
+        std::vector<uint8_t> share1(v1.begin() + i*splitpoint, v1.begin() + (i + 1)*splitpoint);
+        std::vector<uint8_t> share2(v2.begin() + i*splitpoint, v2.begin() + (i + 1)*splitpoint);
+        std::vector<uint8_t> z0_share(z0_shares.begin() + i*splitpoint, z0_shares.begin() + (i + 1)*splitpoint);
 
-    share1 = std::get<1>(output11);
-    share2 = std::get<1>(output12);
-    auto z1 = reconstruct_helper_gf256(z1_share, share1, share2);
+        share1 = std::get<0>(output11);
+        share2 = std::get<0>(output12);
+        auto z0 = reconstruct_helper_gf256(z0_share, share1, share2);
 
-    DPF::KeyShare key0, key1; // Note that these are the two underlying DPF+ keys for this party only
-    key0.key = key.first.key;
-    std::copy(ocw0.begin(), ocw0.end(), key0.key.end() - 16); // replace the output CW
-    // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
-    key0.z = convertToUint32(z0);
-    debugPrint << "z0 is : " << key0.z << std::endl;
+        v1 = std::get<1>(output11);
+        v2 = std::get<1>(output12);
+        share1.assign(v1.begin() + i*splitpoint, v1.begin() + (i + 1)*splitpoint);
+        share2.assign(v2.begin() + i*splitpoint, v2.begin() + (i + 1)*splitpoint);
+        std::vector<uint8_t> z1_share(z1_shares.begin() + i*splitpoint, z1_shares.begin() + (i + 1)*splitpoint);
+        auto z1 = reconstruct_helper_gf256(z1_share, share1, share2);
 
-    key1.key = key.second.key;
-    std::copy(ocw1.begin(), ocw1.end(), key1.key.end() - 16); // replace the output CW
-    // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
-    key1.z = convertToUint32(z1);
-    debugPrint << "z1 is : " << key1.z << std::endl;
-    return {key0, key1};
+        DPF::KeyShare key0, key1; // Note that these are the two underlying DPF+ keys for this party only
+        key0.key = key[i].first.key;  // TODO: can improve allocation
+        std::copy(ocws0[i].begin(), ocws0[i].end(), key0.key.end() - 16); // replace the output CW
+        // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
+        key0.z = convertToUint32(z0);
+        debugPrint << "z0 is : " << key0.z << std::endl;
+
+        key1.key = key[i].second.key; // TODO: can improve allocation
+        std::copy(ocws1[i].begin(), ocws1[i].end(), key1.key.end() - 16); // replace the output CW
+        // TODO: need to fix the problem that z is uint32, where here its 128bit.. This is a problem with packing..
+        key1.z = convertToUint32(z1);
+        debugPrint << "z1 is : " << key1.z << std::endl;
+
+        keys.push_back(key0);
+        keys.push_back(key1);
+    }
+
+    return keys;
 }
 
 // This is an implementation of TDDPF.BEval - including verbose printouts to test correctness. It's in Server as it's a protocol.
 // However, the goal isn't to call this ad-hoc. This is just for tests and benchmarking.
-void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
+#ifdef ENABLE_MULTI
+void Server::evalDeferredTest(std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& key, field beta_0, field beta_1, field beta_2) {
+    return;
+#else
+    void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& key, field beta_0, field beta_1, field beta_2) {
     debugPrint << "Starting with OCW: ";
     for (int i = 0; i < 16; i++) {
         debugPrint << static_cast<int>(key.first.key[key.first.key.size() - 16 + i]) << ", ";
@@ -1257,6 +1179,7 @@ void Server::evalDeferredTest(std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyS
         debugPrint << "DPF1 1 Value at " << i << ": " << vm12[i] << std::endl;
     }
 
+#endif
 
 }
 
@@ -1321,7 +1244,18 @@ std::vector<field> Server::multfproduct_open(std::vector<field> inputs) {
 }
 
 // Malicious version of the protocol
+#ifdef ENABLE_MULTI
 void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
+                               std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& deferredKey_A,
+                               const std::vector<DPF::KeyShare>& key_A1,
+                               std::vector<std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>>& deferredKey_A1,
+                               const std::vector<DPF::KeyShare>& key_B,
+                               field tag_A_share, field tag_A1_share,
+                               std::vector<field> amount_0, std::vector<field> amount_1, std::vector<field> amount_2,
+                               std::vector<field> one_0, std::vector<field> one_1, std::vector<field> one_2,
+                               std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti) {
+#else
+    void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
                                std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A,
                                const std::vector<DPF::KeyShare>& key_A1,
                                std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey_A1,
@@ -1330,7 +1264,7 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
                                field amount_0, field amount_1, field amount_2,
                                field one_0, field one_1, field one_2,
                                std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti) {
-
+#endif
     //// Protocol description. Items in the same line --> round happens in parallel (or they have the same context)
     // TODO: figure out what is not a must for security.. Open stuff:
     // 1. Do we need to check amount_A, amount_B, ones_i and amount_i inputs? I think we do because they go through Fmult to randomize and adv can cheat..
@@ -1424,9 +1358,10 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 
     // Randomize inputs
     std::vector<field> batch_outputs, batch_outputs_MACs; // collect all gates to batch check at the end
+    // TODO: enable multi..
     std::vector<field> inputs1 = {
-            amount_0, amount_1, amount_2,
-            one_0, one_1, one_2,
+            amount_0[0], amount_1[0], amount_2[0],
+            one_0[0], one_1[0], one_2[0],
             amount_A, amount_B,
             tag_A_share, tag_A1_share
     };
@@ -1454,8 +1389,19 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
     debugPrint << "Finished randomizing inputs round" << std::endl;
 //#endif
 
+    // TODO: reduce to one round?
+#ifdef ENABLE_MULTI
+//    const auto Key1 = evalDeferredMulti(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC);
+//    const auto Key2 = evalDeferredMulti(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC);
+
+    // TODO: this won't work.. for now..
+    const auto Key1 = fixCodeword_helper(deferredKey_A, amount_0, amount_1, amount_2);
+    const auto Key2 = fixCodeword_helper(deferredKey_A1, one_0, one_1, one_2);
+#else
     const auto Key1 = evalDeferred(deferredKey_A, amount_0_MAC, amount_1_MAC, amount_2_MAC);
     const auto Key2 = evalDeferred(deferredKey_A1, one_0_MAC, one_1_MAC, one_2_MAC);
+#endif
+
 //    // Randomize DPF inputs (fix codewords)
 
 
@@ -1474,12 +1420,21 @@ void Server::transferMalicious(const std::vector<DPF::KeyShare>& key_A,
 //    field tag_share_A1_prime_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
 //    field balance_A_MAC = mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
 
+#ifdef ENABLE_MULTI
+    auto future_data_A_MAC = pool.submit_task([&] {
+        return DPF::EvalShamirMulti(Key1, vmsmulti[3], vms[6], log2N, server_index, false);
+    });
+    auto future_data_A1_MAC = pool.submit_task([&] {
+        return DPF::EvalShamirMulti(Key2, vmsmulti[4], vms[8], log2N, server_index, false);
+    });
+#else
     auto future_data_A_MAC = pool.submit_task([&] {
         return DPF::EvalShamir(Key1, vms[6], vms[7], log2N, server_index, false);
     });
     auto future_data_A1_MAC = pool.submit_task([&] {
         return DPF::EvalShamir(Key2, vms[8], vms[9], log2N, server_index, false);
     });
+#endif
 
 //    // Start asynchronous tasks for the rest of the computations
 //    auto future_tag_share_A_prime = pool.submit_task([&] {

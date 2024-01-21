@@ -1384,6 +1384,38 @@ namespace DPF {
         return {key0, key1, key2};
     }
 
+    std::vector<std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>>> DeferredGenShamirMulti(size_t alpha, size_t logn) {
+        // Create splits
+        int N = 1 << logn;
+        std::vector<std::vector<int>> result;
+        int log2n_split = logn - static_cast<int>(std::log2(N_SPLITS));
+        int nsplits = N_SPLITS;
+        int splitSize = N / nsplits;
+
+        std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> key_for_p1, key_for_p2, key_for_p3;
+        std::vector<std::pair<DeferredKeyShare, DeferredKeyShare>> splitkeys;
+        for (int i = 0; i < nsplits; i++) {
+            if (alpha >= i*splitSize && alpha < (i+1)*splitSize) {
+                auto alpha_split = alpha - i*splitSize;
+//                std::cout << "alpha_split = " << alpha_split << ", i*splitSize = " << i*splitSize << ", (i+1)*splitSize = " << (i+1)*splitSize << ", log2n_split = " << log2n_split << std::endl;
+                splitkeys = DeferredGenShamir(alpha_split, log2n_split);
+            } else {
+                splitkeys = DeferredGenShamir(0, log2n_split);
+            }
+
+            key_for_p1.push_back(splitkeys[0]);
+            key_for_p1.push_back(splitkeys[0]);
+
+            key_for_p2.push_back(splitkeys[1]);
+            key_for_p2.push_back(splitkeys[1]);
+
+            key_for_p3.push_back(splitkeys[2]);
+            key_for_p3.push_back(splitkeys[2]);
+        }
+
+        return {key_for_p1, key_for_p2, key_for_p3};
+    }
+
     int EvalShamir(const std::vector<KeyShare>& key, uint32_t* vm0_start, uint32_t* vm0_end, uint32_t* vm1_start, uint32_t* vm1_end, size_t logn, uint64_t party_index, bool verifiable) {
         bool index1 = false;
         bool index2 = false;
