@@ -400,14 +400,14 @@ void test_client(int serverIndex, int logN) {
 void test_fastdpf(int logN) {
     int N = 1 << logN;
     int beta = 7;
-    int alpha = 254;
+    int alpha = 400;
 
     auto keys = DPF::GenFast(alpha, logN, beta);
 
     // Generating the underlying vectors..
-    std::array<std::vector<uint32_t>, 4> vms;
+    std::array<std::vector<uint32_t>, 12> vms;
     std::array<std::vector<uint32_t>, 3> eval_vms;
-    for (int i = 0; i < 4; i++) {
+    for (int i = 0; i < 12; i++) {
         vms[i] = std::vector<uint32_t>((1ULL<< logN/2));
 
         if (i < 3) {
@@ -417,18 +417,45 @@ void test_fastdpf(int logN) {
 
 
     DPF::EvalFast(keys[0], vms[0], vms[1], vms[2], vms[3], eval_vms[0], logN, 0);
-    DPF::EvalFast(keys[0], vms[0], vms[1], vms[2], vms[3], eval_vms[1], logN, 1);
-    DPF::EvalFast(keys[0], vms[0], vms[1], vms[2], vms[3], eval_vms[2], logN, 2);
+    DPF::EvalFast(keys[1], vms[4], vms[5], vms[6], vms[7], eval_vms[1], logN, 1);
+    DPF::EvalFast(keys[2], vms[8], vms[9], vms[10], vms[11], eval_vms[2], logN, 2);
+
+//    DPF::EvalShamir({keys[0][2], keys[0][3]}, vms[4], vms[5], logN, 0);
+//    DPF::EvalShamir({keys[1][2], keys[1][3]}, vms[6], vms[7], logN, 1);
+//    DPF::EvalShamir({keys[2][2], keys[2][3]}, vms[8], vms[9], logN, 2);
+
+//    auto shares = encode_to_shares({
+//                                           eval_vms[0][alpha],
+//                                           eval_vms[1][alpha],
+//                                           eval_vms[2][alpha]
+//                                   });
+//    auto v = recover_secret(shares, PP);
+//    std::cout << "arr[alpha]: " << v << std::endl;
+//    std::cout << "Moving to debug.." << std::endl;
+
+//    for (int i = 0; i < (1ULL<< logN/2); i++) {
+//        auto shares = encode_to_shares({
+//                                               vms[4][i],
+//                                               vms[6][i],
+//                                               vms[8][i]
+//                                       });
+//        auto v = recover_secret(shares, PP);
+//        if (v != 0) {
+//            std::cout << "arr[" << i << "]: " << v << std::endl;
+//        }
+//    }
 
     for (int i = 0; i < N; i++) {
         auto shares = encode_to_shares({
-                                           eval_vms[0][i],
-                                           eval_vms[1][i],
-                                           eval_vms[2][i]
-                                   });
+                                               eval_vms[0][i],
+                                               eval_vms[1][i],
+                                               eval_vms[2][i]
+                                       });
         auto v = recover_secret(shares, PP);
-        std::cout << "eval_vms[" << i << "]: " << eval_vms[0][i] << std::endl;
-        std::cout << "arr[" << i << "]: " << v << std::endl;
+        if (v != 0) {
+            std::cout << "eval_vms[" << i << "]: " << eval_vms[0][i] << std::endl;
+            std::cout << "arr[" << i << "]: " << v << std::endl;
+        }
     }
 }
 
@@ -805,6 +832,13 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
     evalT = std::chrono::duration<double>::zero();
     std::cout << "Running benchmark category: " << BENCHMARK_NAMES[benchmark] << " with idx_start = " << idx_start << " and idx_end = " << idx_end << std::endl;
 
+    if (benchmark == 7) {
+        vmsmulti[0][0] = std::vector<uint32_t>((1ULL << logN / 2));
+        vmsmulti[0][1] = std::vector<uint32_t>((1ULL << logN / 2));
+        vmsmulti[0][2] = std::vector<uint32_t>((1ULL << logN / 2));
+        vmsmulti[0][3] = std::vector<uint32_t>((1ULL << logN / 2));
+    }
+
     for (int i = idx_start; i < idx_end; i++) {
         ClientTransferRequest request = load_client_transfer_request(i, serverIndex);
 //        std::cout << "Running benchmark number: " << i << std::endl;
@@ -836,6 +870,10 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
 
             if (benchmark == 6) {
                 shamirkeys = DPF::GenShamirMulti(alpha, logN, beta, false);
+            }
+
+            if (benchmark == 7) {
+                shamirkeys = DPF::GenFast(alpha, logN, beta);
             }
 
         }
@@ -888,6 +926,7 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
             case 7:
                 time1 = std::chrono::high_resolution_clock::now();
 //                DPF::EvalShamirMulti(shamirkeys[0], vmsmulti, vms[0], logN, 0, false);
+                DPF::EvalFast(shamirkeys[0], vmsmulti[0][0], vmsmulti[0][1], vmsmulti[0][2], vmsmulti[0][3], vms[0], logN, 0);
                 time2 = std::chrono::high_resolution_clock::now();
                 break;
             case 8:
@@ -1488,10 +1527,10 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
         auto evalT = handleBenchmark(server, serverIndex, 0, nBenchmarks, benchmark, vms, vmsmulti, logN);
 
         // TODO: write to a CSV file:
-        auto evalT_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(evalT);
+        auto evalT_milliseconds = std::chrono::duration_cast<std::chrono::microseconds>(evalT);
         double benchmarkTime = evalT_milliseconds.count();
         double timePerIter = evalT_milliseconds.count()/(nBenchmarks - 5);
-        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << benchmarkTime << "ms. Each iteration took: " << timePerIter << " ms. " << std::endl;
+        std::cout << "Benchmark: " << BENCHMARK_NAMES[benchmark] << " took overall: " << benchmarkTime << " microseconds. Each iteration took: " << timePerIter << " microseconds. " << std::endl;
         appendToCSV(BENCHMARK_NAMES[benchmark], serverIndex, logN, nBenchmarks, timePerIter);
     }
 
@@ -1583,11 +1622,11 @@ int main(int argc, char** argv) {
 //    testInnerProducts(1024*1024);
 //    return 0;
 
-    int nBenchmarks = 20; // How many iterations to run for each benchmark
+    int nBenchmarks = 50; // How many iterations to run for each benchmark
 
     if (isLocal) {
         // Run all local tests
-        for (int i = 18; i < N + 1; i++) {
+        for (int i = 10; i < N + 1; i += 2) {
             std::cout << "Running local benchmarks for logN = " << i << std::endl;
             benchmark_suite(benchmarks, serverIndex, i, false, nBenchmarks);
         }

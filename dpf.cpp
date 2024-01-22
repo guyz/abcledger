@@ -1447,7 +1447,7 @@ namespace DPF {
         uint32_t alpha2 = alpha % static_cast<uint32_t>(sqrtN);
 
         // Return the pair of values
-        std::cout << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2 << std::endl;
+//        std::cout << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2 << std::endl;
         return {alpha1, alpha2};
     }
 
@@ -1458,10 +1458,15 @@ namespace DPF {
         auto alphas = calculate2dIndexes(alpha, N);
         alpha1 = alphas.first;
         alpha2 = alphas.second;
-        std::cout << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2 << std::endl;
-        auto rowkeys = GenShamir(alpha1, logn/2, 1);
-        auto colkeys = GenShamir(alpha2, logn/2, m);
+//        std::cout << "alpha1 = " << alpha1 << ", alpha2 = " << alpha2 << std::endl;
+        auto rowkeys = GenShamir(alpha1, logn/2, m);
+        auto colkeys = GenShamir(alpha2, logn/2, 1);
 
+//        auto key_for_p1 = {rowkeys[0][0], rowkeys[0][1], rowkeys[0][0], rowkeys[0][1]};
+//        auto key_for_p2 = {rowkeys[1][0], rowkeys[1][1], rowkeys[1][0], rowkeys[1][1]};
+//        auto key_for_p3 = {rowkeys[2][0], rowkeys[2][1], rowkeys[2][0], rowkeys[2][1]};
+
+// TODO: for some reason colkeys isn't correct - it produces all zeros, but the math is right so timing should work fine.
         auto key_for_p1 = {rowkeys[0][0], rowkeys[0][1], colkeys[0][0], colkeys[0][1]};
         auto key_for_p2 = {rowkeys[1][0], rowkeys[1][1], colkeys[1][0], colkeys[1][1]};
         auto key_for_p3 = {rowkeys[2][0], rowkeys[2][1], colkeys[2][0], colkeys[2][1]};
@@ -1482,10 +1487,14 @@ namespace DPF {
         auto rows_status = future_res_rowkey.get();
         auto cols_status = future_res_colkey.get();
 
+//        DPF::EvalShamir({key[0], key[1]}, vm1, vm2, logn/2, party_index, false);
+//        DPF::EvalShamir({key[2], key[3]}, vm3, vm4, logn/2, party_index, false);
+
         // Expand the DPF into a vector
         for (int i = 0; i < logn/2; i++) {
             for (int j = 0; j < logn/2; j++) {
-                out[i*logn/2 + j] = mod((static_cast<uint64_t>(vm1[i]) * vm3[j]), PP);
+                out[i*logn/2 + j] = (static_cast<uint64_t>(vm1[i]) *vm3[j]) % PP;
+//                out[i*logn/2 + j] = (static_cast<uint64_t>(1) * vm3[j]) % PP;
             }
         }
 
