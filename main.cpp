@@ -938,7 +938,7 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
             case 9:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
-                                        request.one1, request.one2, vms);
+                                        request.one1, request.one2, vms, vmsmulti);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balanceMalicious" << std::endl;
                 break;

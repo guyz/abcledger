@@ -493,24 +493,58 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
 //    debugPrint << "pi_B: " << pi_B[0][0] << std::endl;
     debugPrint << "alphas[0]: " << alphas[0] << std::endl; // TODO: remove temp
 
+    // TODO: parallelize
     field amount_A = PIRW::sumvecff31(data_A);
     field amount_B = PIRW::sumvecff31(data_B);
 
-//    // Start asynchronous tasks for the rest of the computations
-    auto future_tag_share_A_prime = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
-    });
-    auto future_tag_share_A1_prime = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
-    });
-    auto future_balance_A = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
-    });
-    // ... [other asynchronous tasks] ...
-    field tag_share_A_prime = future_tag_share_A_prime.get();
-    field tag_share_A1_prime = future_tag_share_A1_prime.get();
-    field balance_A = future_balance_A.get();
+    extern BS::thread_pool pool;
+    int splitSize = N / N_SPLITS2;
 
+    // Parallel loop
+    std::vector<std::future<uint64_t>> futures1, futures2, futures3;
+    for (int i = 0; i < N_SPLITS2; i++) {
+
+        auto alpha_start = alphas.data() + i*splitSize;
+        auto alpha_end = alphas.data() + (i+1)*splitSize;
+        auto ledger_start = ledger.data() + i*splitSize;
+        auto ledger_end = ledger.data() + (i+1)*splitSize;
+        auto data_A_start = data_A.data() + i*splitSize;
+        auto data_A_end = data_A.data() + (i+1)*splitSize;
+        auto data_A1_start = data_A1.data() + i*splitSize;
+        auto data_A1_end = data_A1.data() + (i+1)*splitSize;
+
+        futures1.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A_start, data_A_end)), PP));
+        }));
+
+        futures2.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+        futures3.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(ledger_start, ledger_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+    }
+
+    // Wait for all futures to complete
+    uint64_t sum1 = 0, sum2 = 0, sum3 = 0;
+    for (auto& f : futures1) {
+        sum1 += f.get();
+    }
+
+    for (auto& f : futures2) {
+        sum2 += f.get();
+    }
+
+    for (auto& f : futures3) {
+        sum3 += f.get();
+    }
+
+    // ... [other asynchronous tasks] ...
+    field tag_share_A_prime = sum1 % PP;
+    field tag_share_A1_prime = sum2 % PP;
+    field balance_A = sum3 % PP;
 
 //    // FProduct gates
 //    field tag_share_A_prime = mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A)), PP);
@@ -582,8 +616,10 @@ void Server::transfer(const std::vector<DPF::KeyShare>& key_A,
 
 }
 
+// TODO: can somewhat improve with improvements from balanceMalicious
 uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_share, std::array<std::vector<uint32_t>, 10>& vms) {
-    auto future_res_A1 = std::async(std::launch::async, [&]() {
+    extern BS::thread_pool pool;
+    auto future_res_A1 = pool.submit_task([&]() {
         return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
     });
 
@@ -591,17 +627,42 @@ uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_sha
 
     auto &data_A1 = vms[0];
 
-    //    // Start asynchronous tasks for the rest of the computations
-    auto future_tag_share_prime = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
-    });
-    auto future_balance = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
-    });
+    int splitSize = N / N_SPLITS2;
+
+    // Parallel loop
+    std::vector<std::future<uint64_t>> futures1, futures2;
+    for (int i = 0; i < N_SPLITS2; i++) {
+
+        auto alpha_start = alphas.data() + i*splitSize;
+        auto alpha_end = alphas.data() + (i+1)*splitSize;
+        auto ledger_start = ledger.data() + i*splitSize;
+        auto ledger_end = ledger.data() + (i+1)*splitSize;
+        auto data_A1_start = data_A1.data() + i*splitSize;
+        auto data_A1_end = data_A1.data() + (i+1)*splitSize;
+
+        futures1.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+        futures2.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(ledger_start, ledger_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+    }
+
+    // Wait for all futures to complete
+    uint64_t sum1 = 0, sum2 = 0;
+    for (auto& f : futures1) {
+        sum1 += f.get();
+    }
+
+    for (auto& f : futures2) {
+        sum2 += f.get();
+    }
 
     // ... [other asynchronous tasks] ...
-    field tag_share_prime = future_tag_share_prime.get();
-    field balance = future_balance.get();
+    field tag_share_prime = sum1 % PP;
+    field balance = sum2 % PP;
 
     auto outputs = multfproduct_open({tag_share_prime, balance});
 
@@ -640,21 +701,34 @@ uint32_t Server::balance(const std::vector<DPF::KeyShare>& key, uint32_t tag_sha
 }
 
 uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pair<DPF::DeferredKeyShare, DPF::DeferredKeyShare>& deferredKey, uint32_t tag_share,
-                                  field one_0, field one_1, field one_2, std::array<std::vector<uint32_t>, 10>& vms) {
+                                  field one_0, field one_1, field one_2,
+                                  std::array<std::vector<uint32_t>, 10>& vms, std::array<std::array<std::vector<uint32_t>, 2*N_SPLITS>, 10>& vmsmulti) {
     field r = PRSS();
 
-    auto future_res_A1 = std::async(std::launch::async, [&]() {
-        return DPF::EvalShamir(key, vms[0], vms[1], log2N, server_index, false);
+    extern BS::thread_pool pool;
+
+    auto future_res_A1 = pool.submit_task([&] {
+#ifdef ENABLE_MULTI
+        return DPF::EvalShamirMulti(key, vmsmulti[0], vms[0], log2N, server_index, false);
+#else
+        return DPF::EvalShamir(key_A1, vms[2], vms[3], log2N, server_index, false);
+#endif
     });
 
+    // Getting the results (this will wait for the thread to finish if it hasn't yet)
     auto res_A1 = future_res_A1.get();
 
-    auto &data_A1 = vms[0];
+    auto& data_A1 = vms[0];
+//    auto pi_B = res_B.second;
+    std::array<block, 2> pi_B; // TODO: fix this..
+    block pi0_B = pi_B[0];
+    block pi1_B = pi_B[1]; // TODO: check pis..
 
     // Randomize inputs
     std::vector<field> batch_outputs, batch_outputs_MACs; // collect all gates to batch check at the end
     std::vector<field> inputs1 = {
-            one_0, one_1, one_2, tag_share
+            one_0, one_1, one_2,
+            tag_share
     };
     batch_outputs.insert(batch_outputs.end(), inputs1.begin(), inputs1.end());
 
@@ -670,45 +744,90 @@ uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pa
     field one_1_MAC = outputs[1];
     field one_2_MAC = outputs[2];
     field tag_share_MAC = outputs[3];
-
-    //#ifndef DEBUG
+//#ifndef DEBUG
     debugPrint << "Finished randomizing inputs round" << std::endl;
-    //#endif
+//#endif
 
-    const auto Key1 = evalDeferred(deferredKey, one_0_MAC, one_1_MAC, one_2_MAC);
+    const auto Key = evalDeferred(deferredKey, one_0_MAC, one_1_MAC, one_2_MAC);
 
-    auto future_data_A1_MAC = std::async(std::launch::async, [&] {
-        return DPF::EvalShamir(Key1, vms[2], vms[3], log2N, server_index, false);
+    auto future_data_A1_MAC = pool.submit_task([&] {
+        return DPF::EvalShamir(Key, vms[8], vms[9], log2N, server_index, false);
     });
 
-    //    // Start asynchronous tasks for the rest of the computations
-    auto future_tag_share_prime = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1)), PP);
-    });
-    auto future_balance = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1, ledger)), PP);
-    });
+    int splitSize = N / N_SPLITS2;
+
+    // Parallel loop
+    std::vector<std::future<uint64_t>> futures1, futures2;
+    for (int i = 0; i < N_SPLITS2; i++) {
+
+        auto alpha_start = alphas.data() + i*splitSize;
+        auto alpha_end = alphas.data() + (i+1)*splitSize;
+        auto ledger_start = ledger.data() + i*splitSize;
+        auto ledger_end = ledger.data() + (i+1)*splitSize;
+        auto data_A1_start = data_A1.data() + i*splitSize;
+        auto data_A1_end = data_A1.data() + (i+1)*splitSize;
+
+        futures1.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+        futures2.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(ledger_start, ledger_end, data_A1_start, data_A1_end)), PP));
+        }));
+
+    }
+
+    // Wait for all futures to complete
+    uint64_t sum1 = 0, sum2 = 0;
+    for (auto& f : futures1) {
+        sum1 += f.get();
+    }
+
+    for (auto& f : futures2) {
+        sum2 += f.get();
+    }
 
     // ... [other asynchronous tasks] ...
-    field tag_share_prime = future_tag_share_prime.get();
-    field balance = future_balance.get();
-    //    const auto& data_A_MAC = future_data_A_MAC.get();
+    field tag_share_prime = sum1 % PP;
+    field balance = sum2 % PP;
+
     auto res_A1_MAC = future_data_A1_MAC.get();
-    auto &data_A1_MAC = vms[2];
+    auto& data_A1_MAC = vms[8];
 
-    // Start asynchronous tasks for the MAC computations
-    auto future_tag_share_prime_MAC = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(alphas, data_A1_MAC)), PP);
-    });
-    auto future_balance_MAC = std::async(std::launch::async, [&] {
-        return mod(static_cast<int64_t>(PIRW::innerprodff31(data_A1_MAC, ledger)), PP);
-    });
+    futures1.clear(); futures2.clear();
+    for (int i = 0; i < N_SPLITS2; i++) {
+        auto alpha_start = alphas.data() + i*splitSize;
+        auto alpha_end = alphas.data() + (i+1)*splitSize;
+        auto ledger_start = ledger.data() + i*splitSize;
+        auto ledger_end = ledger.data() + (i+1)*splitSize;
+        auto data_A1_MAC_start = data_A1_MAC.data() + i*splitSize;
+        auto data_A1_MAC_end = data_A1_MAC.data() + (i+1)*splitSize;
 
-    // Get the results of the MAC computations
-    field tag_share_prime_MAC = future_tag_share_prime_MAC.get();
-    field balance_MAC = future_balance_MAC.get();
+        futures1.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(alpha_start, alpha_end, data_A1_MAC_start, data_A1_MAC_end)), PP));
+        }));
 
-    outputs = multfproduct_open({tag_share_prime, balance, tag_share_prime_MAC, balance_MAC});
+        futures2.push_back(pool.submit_task([=] {
+            return static_cast<uint64_t>(mod(static_cast<int64_t>(PIRW::innerprodff31v(ledger_start, ledger_end, data_A1_MAC_start, data_A1_MAC_end)), PP));
+        }));
+
+    }
+
+    // Wait for all futures to complete
+    sum1 = 0; sum2 = 0;
+    for (auto& f : futures1) {
+        sum1 += f.get();
+    }
+
+    for (auto& f : futures2) {
+        sum2 += f.get();
+    }
+
+    // ... [other asynchronous tasks] ...
+    field tag_share_prime_MAC = sum1 % PP;
+    field balance_MAC = sum2 % PP;
+
+    outputs = multfproduct_open({ tag_share_prime, balance, tag_share_prime_MAC, balance_MAC });
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 2);
     batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 2, outputs.end());
 
@@ -723,31 +842,34 @@ uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pa
     // FCheckZero Gate
 
     // Round 1 - multiply by a random value
-    // TODO: do I even need to authenticate the tags? Easier to just authenticate, but maybe can't cheat here anyway?
     field tag_delta_share = mod(static_cast<int64_t>(tag_share) - tag_share_prime, PP);
     field tag_delta_share_MAC = mod(static_cast<int64_t>(tag_share_MAC) - tag_share_prime_MAC, PP);
 
     field r1 = PRSS();
-    outputs = multgate_helper({tag_delta_share, tag_delta_share_MAC}, {r1, r1});
+    field r2 = PRSS();
+    outputs = multgate_helper({tag_delta_share, tag_delta_share_MAC}, {r1, r2, r1, r2});
     batch_outputs.insert(batch_outputs.end(), outputs.begin(), outputs.begin() + 1);
     batch_outputs_MACs.insert(batch_outputs_MACs.end(), outputs.begin() + 1, outputs.end());
     debugPrint << "Finished CheckZero Round 1" << std::endl;
 
     // Round 2 - Open and check bit in the clear. Also batch FLTZ gates and check Pi_B
-    // TODO: do we need to open and verify the degree? or just open? Same repeating question..
     auto inputs = std::make_tuple(
             outputs[0],
             outputs[1],
-            r
+            r,
+            pi0_B, pi1_B // DPF B proof part 1
     );
 
     // Run the round of communication
     auto [output1, output2] = run_round(inputs);
 
     // Process the received data
-    auto [zero_check_a_1, zero_check_b_1, r_share1] = output1;
-    auto [zero_check_a_2, zero_check_b_2, r_share2] = output2;
+    auto [zero_check_a_1, zero_check_b_1, r_share1, pi0_B1, pi1_B1] = output1;
+    auto [zero_check_a_2, zero_check_b_2, r_share2, pi0_B2, pi1_B2] = output2;
     debugPrint << "Finished CheckZero Round 2" << std::endl;
+
+    // Run Access Control checks
+    // TODO: check Pis..
 
     // Reconstruct
     std::vector<field> shares0 = {outputs[0], outputs[1], r};
@@ -755,7 +877,6 @@ uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pa
     std::vector<field> shares2 = {zero_check_a_2, zero_check_b_2, r_share2};
     auto reconstructed = reconstruct_helper(shares0, shares1, shares2);
 
-    // TODO: reenable
     assert(reconstructed[0] == 0);
     assert(reconstructed[1] == 0);
 
@@ -766,12 +887,12 @@ uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pa
     u = 0;
     w = 0;
     for (int i = 0; i < coeffs.size(); i++) {
-        field tmp = mod(static_cast<int64_t>(coeffs[i]) * batch_outputs[i], PP);
-        w = mod(w + tmp, PP);
-        tmp = mod(static_cast<int64_t>(coeffs[i]) * batch_outputs_MACs[i], PP);
+        field tmp = mod(static_cast<int64_t>(coeffs[i])*batch_outputs[i], PP);
+        w =  mod(w + tmp, PP);
+        tmp = mod(static_cast<int64_t>(coeffs[i])*batch_outputs_MACs[i], PP);
         u = mod(u + tmp, PP);
     }
-    field t = mod(u - reconstructed_r * w, PP);
+    field t = mod(u - reconstructed_r*w, PP);
 
     // CheckZero on t
     r1 = PRSS();
@@ -792,36 +913,35 @@ uint32_t Server::balanceMalicious(const std::vector<DPF::KeyShare>& key, std::pa
     auto t_reconstructed = reconstruct_helper(outputs, check_share1, check_share2)[0];
     debugPrint << "Finished BatchVerify (CheckZero) Round 2 and t = " << t_reconstructed << std::endl;
 
-    //    // TODO: remove temp
-    //    // Open
-    //    auto inp_tmp = std::make_tuple(
-    //            batch_outputs,
-    //            batch_outputs_MACs
-    //    );
-    //
-    //    // Run the round of communication
-    //    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
-    //
-    //    // Process the received data
-    //    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
-    //    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
-    //    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
-    //    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
-    //
-    //    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
-    //        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
-    //        debugPrint << "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
-    //    }
-    //    // TODO: end remove temp
+//    // TODO: remove temp
+//    // Open
+//    auto inp_tmp = std::make_tuple(
+//            batch_outputs,
+//            batch_outputs_MACs
+//    );
+//
+//    // Run the round of communication
+//    auto [out_tmp1, out_tmp2] = run_round(inp_tmp);
+//
+//    // Process the received data
+//    auto [batch_outputs1, batch_outputs_MACs1] = out_tmp1;
+//    auto [batch_outputs2, batch_outputs_MACs2] = out_tmp2;
+//    auto batch_outputs_reconstructed = reconstruct_helper(batch_outputs, batch_outputs1, batch_outputs2);
+//    auto batch_outputs_MACs_reconstructed = reconstruct_helper(batch_outputs_MACs, batch_outputs_MACs1, batch_outputs_MACs2);
+//
+//    for (int i = 0; i < batch_outputs_reconstructed.size(); i++) {
+//        field routput = mod(static_cast<int64_t>(batch_outputs_reconstructed[i])*reconstructed_r, PP);
+//        debugPrint<< "output[" << i << "]: " << batch_outputs_reconstructed[i] << ", output_MAC: " << batch_outputs_MACs_reconstructed[i] << ", r*output: " << routput << std::endl;
+//    }
+//    // TODO: end remove temp
 
 
-    //    assert(t_reconstructed == 0);
-    if (t_reconstructed == 0) {
-        return balance;
-    } else {
-        std::cout << "Balance failed! t_reconstructed not okay" << std::endl;
+//    assert(t_reconstructed == 0);
+    if (t_reconstructed != 0) {
+        std::cout << "Balance Malicious failed! t_reconstructed not okay" << std::endl;
     }
 
+    return balance;
 }
 
 
