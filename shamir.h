@@ -1,5 +1,5 @@
 //
-// Created by Guy Zyskind on 08/12/2022.
+// Created by ___ on 08/12/2022.
 //
 
 #ifndef DPFPIR_SHAMIR_H

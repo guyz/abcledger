@@ -1,5 +1,5 @@
 //
-// Created by Guy Zyskind on 13/12/2022.
+// Created by ___ on 13/12/2022.
 //
 
 #ifndef DPFPIR_UTILS_H
