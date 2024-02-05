@@ -10,6 +10,11 @@
 #include "utils.h"
 #include <cryptopp/sha.h>
 
+struct CW {
+    block s_cw;
+    uint8_t t_cwL;
+    uint8_t t_cwR;
+};
 
 namespace DPF {
 
@@ -58,6 +63,8 @@ namespace DPF {
 
         std::pair<uint8_t, uint8_t> t0_share;
     };
+
+//    block generate_random_128bit_number();
 
     std::pair<std::vector<uint8_t>, std::vector<uint8_t> > Gen(size_t alpha, size_t logn);
     bool Eval(const std::vector<uint8_t>& key, size_t x, size_t logn);
@@ -138,4 +145,6 @@ namespace DPF {
 
     std::pair<KeyShare, KeyShare> VerGenM(size_t alpha, size_t logn, uint32_t msg);
     std::vector<uint32_t> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index, bool pi_index = false);
+    std::pair<std::array<block, 2>, std::array<uint8_t, 2>> compute_L_R_for_level(std::vector<block>& seeds, std::vector<uint8_t>& ts, int level);
+    void update_seeds(std::vector<block>& seeds, std::vector<uint8_t>& ts, CW& cw, int level);
 }

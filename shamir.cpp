@@ -281,3 +281,62 @@ std::vector<uint8_t> extract_values_gf256(std::vector<std::pair<uint8_t, uint8_t
 
     return res;
 }
+
+std::vector<uint64_t> additive_share(uint64_t secret, int num_shares, bool is_xor) {
+    std::vector<uint64_t> shares;
+    shares.push_back(0);
+    uint64_t r = 0;
+    for (int i = 0; i < num_shares - 1; i++) {
+        uint64_t rr = rand(); // NOTE: in practice it's a 32-bit insecure integer, but okay for testing
+        shares.push_back(rr);
+        if (is_xor) {
+            r ^= rr;
+        } else {
+            r += rr;
+        }
+    }
+    if (is_xor) {
+        shares[0] = secret ^ r;
+    } else {
+        shares[0] = secret - r;
+    }
+
+    return shares;
+}
+
+uint64_t additive_reconstruct(std::vector<uint64_t>& shares, bool is_xor) {
+    uint64_t res = 0;
+    for (int i = 0; i < shares.size(); i++) {
+        if (is_xor) {
+            res ^= shares[i];
+        } else {
+            res += shares[i];
+        }
+    }
+
+    return res;
+}
+
+std::vector<block> additive_share(block secret, int num_shares) {
+    std::vector<block> shares;
+    shares.push_back(_mm_setzero_si128());
+    block r = _mm_setzero_si128();
+    for (int i = 0; i < num_shares - 1; i++) {
+        block rr = generate_random_128bit_number();
+        shares.push_back(rr);
+        r = _mm_xor_si128(r, rr);
+    }
+    shares[0] = _mm_xor_si128(secret, r);
+
+    return shares;
+}
+
+block additive_reconstruct(std::vector<block>& shares) {
+    block res = _mm_setzero_si128();
+    for (int i = 0; i < shares.size(); i++) {
+        res = _mm_xor_si128(res, shares[i]);
+    }
+
+    return res;
+}
+

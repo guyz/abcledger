@@ -15,8 +15,10 @@
 #include <cstdint>
 #include <filesystem>
 #include <string>
-#include "utils.h"
 #include <map>
+#include "PRNG.h"
+#include <future>
+
 //#include "AlignedAllocator.h"
 
 //constexpr std::size_t Alignment = 64; // Change this to your desired alignment
@@ -1550,6 +1552,149 @@ void benchmark_suite(std::vector<std::string>& benchmarks, int serverIndex, int 
     std::cout << "Finished running all benchmarks!" << std::endl;
 }
 
+std::pair<CW, block> mockup_mpc_cw(uint8_t i0, uint8_t i1, block L0, block L1, block R0, block R1,
+                                   uint8_t t_cwL0, uint8_t t_cwL1, uint8_t t_cwR0, uint8_t t_cwR1,
+                                   block beta0, block beta1, bool is_last_level) {
+    CW cw;
+
+    // Equivalent to: s_cw = (i0 ^ i1 == 0) ? R0 ^ R1 : L0 ^ L1;
+//    std::cout << "i0^i1: " << static_cast<uint32_t>(i0 ^ i1) << std::endl;
+
+    if ((i0 ^ i1) == 0) {
+        cw.s_cw = _mm_xor_si128(R0, R1);
+    } else {
+        cw.s_cw = _mm_xor_si128(L0, L1);
+    }
+
+    cw.t_cwL = t_cwL0 ^ t_cwL1 ^ 1;
+    cw.t_cwR = t_cwR0 ^ t_cwR1;
+
+    block ocw;
+    block beta = _mm_xor_si128(beta0, beta1);
+    if (is_last_level) {
+        if ((i0 ^ i1) == 1) {
+            ocw = _mm_xor_si128(_mm_xor_si128(R0, R1), _mm_xor_si128(cw.s_cw, beta));
+        } else {
+            ocw = _mm_xor_si128(_mm_xor_si128(L0, L1), _mm_xor_si128(cw.s_cw, beta));
+        }
+    }
+
+    return {cw, ocw};
+}
+
+void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_shares, int logN,
+                  std::vector<block>& seeds0, std::vector<block>& seeds1,
+                  std::vector<uint8_t>& ts0, std::vector<uint8_t>& ts1) {
+    block s0 = generate_random_128bit_number();
+    block s1 = generate_random_128bit_number();
+
+    seeds0[0] = setMSBToZero(s0);
+    seeds1[0] = setMSBToOne(s1);
+    ts0[0] = 0;
+    ts1[0] = 1;
+
+    block ocw;
+    for (int i = 0; i < logN; ++i) {
+        uint8_t i0 = (alpha_shares[0] >> i) & 1;
+        uint8_t i1 = (alpha_shares[1] >> i) & 1;
+
+        // Refactored to reduce redundant code
+        auto processParty = [&](std::vector<block>& seeds, std::vector<uint8_t>& ts) -> std::tuple<block, block, uint8_t, uint8_t> {
+            auto LRvals = DPF::compute_L_R_for_level(seeds, ts, i);
+            return std::make_tuple(LRvals.first[0], LRvals.first[1], LRvals.second[0], LRvals.second[1]);
+        };
+
+        auto [L0, R0, tL0, tR0] = processParty(seeds0, ts0);
+        auto [L1, R1, tL1, tR1] = processParty(seeds1, ts1);
+
+        uint8_t t_cwL0 = i0 ^ tL0;
+        uint8_t t_cwR0 = i0 ^ tR0;
+        uint8_t t_cwL1 = i1 ^ tL1;
+        uint8_t t_cwR1 = i1 ^ tR1;
+
+        auto round_res = mockup_mpc_cw(i0, i1, L0, L1, R0, R1, t_cwL0, t_cwL1, t_cwR0, t_cwR1, beta_shares[0], beta_shares[1], i == logN - 1);
+
+        if (i == logN - 1) {
+            ocw = round_res.second;
+        }
+
+        DPF::update_seeds(seeds0, ts0, round_res.first, i);
+        DPF::update_seeds(seeds1, ts1, round_res.first, i);
+    }
+
+    // Evaluate
+    uint64_t N = 1 << logN;
+    uint64_t idx_start = seeds0.size() - N - 1;
+    for (uint64_t i = idx_start; i < seeds0.size(); ++i) {
+        if (ts0[i] == 1) {
+            seeds0[i] = _mm_xor_si128(seeds0[i], ocw);
+        }
+        if (ts1[i] == 1) {
+            seeds1[i] = _mm_xor_si128(seeds1[i], ocw);
+        }
+    }
+
+//    // Sanity check
+//    alignas(16) int32_t values[4];
+//    for (uint64_t i = idx_start; i < seeds0.size() - 1; i += 1) {
+//        auto res_i = _mm_xor_si128(seeds0[i], seeds1[i]);
+////        auto res_i = seeds0[i];
+//        _mm_store_si128(reinterpret_cast<block*>(values), res_i);
+//
+//        for (int j = 0; j < 4; ++j) {
+//            if (values[j] != 0) {
+//                std::cout << "Block values[" << i << "]: ";
+//                std::cout << values[j] << " ";
+//                std::cout << std::endl;
+//            }
+//        }
+//
+//    }
+
+}
+
+void fake_doram(uint64_t alpha, uint64_t beta, int logN) {
+    auto alpha_shares = additive_share(alpha, 2, true);
+    block beta_block = _mm_set_epi64x(0, beta); // TODO: index flexibility
+    auto beta_shares = additive_share(beta_block, 2);
+
+    int log2_delta = static_cast<int>(std::log2(N_PRF_SPLITS));
+    int logNd = logN - log2_delta;
+
+    std::array<std::vector<block>, N_PRF_SPLITS> seeds0, seeds1;
+    std::array<std::vector<uint8_t>, N_PRF_SPLITS> ts0, ts1;
+    for (int i = 0; i < N_PRF_SPLITS; i++) {
+        seeds0[i] = std::vector<block>((1ULL<< (logNd + 1)));
+        seeds1[i] = std::vector<block>((1ULL<< (logNd + 1)));
+        ts0[i] = std::vector<uint8_t>((1ULL<< (logNd + 1)));
+        ts1[i] = std::vector<uint8_t>((1ULL<< (logNd + 1)));
+    }
+
+    std::chrono::duration<double> evalT;
+    evalT = std::chrono::duration<double>::zero();
+    auto time1 = std::chrono::high_resolution_clock::now();
+
+    // This is a simpler version of the optimization, in practice, should split at the key-word level..
+    std::vector<std::future<void>> futures;
+    for (int i = 0; i < N_PRF_SPLITS; i++) {
+        // Capture variables by value or reference as needed, ensuring thread safety
+        futures.emplace_back(std::async(std::launch::async, [&, i](){
+            // Use 'i' and other captured variables safely within this lambda
+            fake_gen_mpc(alpha_shares, beta_shares, logNd, seeds0[i], seeds1[i], ts0[i], ts1[i]);
+        }));
+    }
+
+    for (auto& future : futures) {
+        future.wait();
+    }
+
+    auto time2 = std::chrono::high_resolution_clock::now();
+    evalT = time2 - time1;
+
+    auto evalT_milliseconds = std::chrono::duration_cast<std::chrono::milliseconds>(evalT);
+    std::cout << "Took overall: " << evalT_milliseconds.count() << "ms" << std::endl;
+}
+
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "
               << std::filesystem::current_path()
@@ -1621,6 +1766,11 @@ int main(int argc, char** argv) {
 //    testInnerProducts(32768);
 //    testInnerProducts(1024*1024);
 //    return 0;
+
+    for (int i = 0; i < 10; i++) {
+        fake_doram(5, 25, 24);
+    }
+    return 0;
 
     int nBenchmarks = 50; // How many iterations to run for each benchmark
 

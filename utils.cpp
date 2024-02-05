@@ -279,3 +279,36 @@ void saveToFile(const std::vector<uint32_t>& data, const std::string& filename) 
     }
     outFile.close();
 }
+
+block generate_random_128bit_number()
+{
+    // Generate four random 32-bit numbers using the rand() function
+    uint32_t r1 = rand();
+    uint32_t r2 = rand();
+    uint32_t r3 = rand();
+    uint32_t r4 = rand();
+
+    // Combine the four 32-bit numbers into a 128-bit number
+    block result = _mm_set_epi32(r1, r2, r3, r4);
+
+    // Return the generated number
+    return result;
+}
+
+// Function to set the LSB of a __m128i block to 0
+block setMSBToZero(block b) {
+    // Create a mask with all bits set to 1 except the MSB of the 128-bit block
+    // MSB mask is 0x7FFFFFFF followed by three 0xFFFFFFFF (in big-endian order)
+    const __m128i mask = _mm_set_epi32(0x7FFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF, 0xFFFFFFFF);
+    // Perform bitwise AND with the mask
+    return _mm_and_si128(b, mask);
+}
+
+// Function to set the LSB of a __m128i block to 1
+block setMSBToOne(block b) {
+    // Create a mask with only the MSB of the 128-bit block set to 1
+    // MSB mask is 0x80000000 followed by three 0x0 (in big-endian order)
+    const __m128i mask = _mm_set_epi32(0x80000000, 0x0, 0x0, 0x0);
+    // Perform bitwise OR with the mask
+    return _mm_or_si128(b, mask);
+}

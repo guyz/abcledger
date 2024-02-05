@@ -166,20 +166,6 @@ namespace DPF {
         return res;
     }
 
-    block generate_random_128bit_number()
-    {
-        // Generate four random 32-bit numbers using the rand() function
-        uint32_t r1 = rand();
-        uint32_t r2 = rand();
-        uint32_t r3 = rand();
-        uint32_t r4 = rand();
-
-        // Combine the four 32-bit numbers into a 128-bit number
-        block result = _mm_set_epi32(r1, r2, r3, r4);
-
-        // Return the generated number
-        return result;
-    }
 
     std::pair<std::vector<uint8_t>, std::vector<uint8_t>> Gen(size_t alpha, size_t logn) {
         assert(logn <= 63);
@@ -1501,4 +1487,69 @@ namespace DPF {
         return 1;
     }
 
+
+    // Iterates over seeds in the current level, expand them, then compute the left children and right children sums
+    std::pair<std::array<block, 2>, std::array<uint8_t, 2>> compute_L_R_for_level(std::vector<block>& seeds,
+                                                                                  std::vector<uint8_t>& ts,
+                                                                                  int level) {
+        uint64_t idx_start = (1 << level) - 1;
+        uint64_t N = (1 << (level + 1)) - 1;
+
+        block L = _mm_setzero_si128();
+        block R = _mm_setzero_si128();
+
+        for (uint64_t i = idx_start; i < N; ++i) {
+            int idx_offset = i - idx_start;
+            block s0 = seeds[i];
+            block s0L = prg::getL(s0);
+            block s0R = _mm_xor_si128(s0, s0L); // Half-tree optimization
+
+            s0L = clr(s0L); // Clear after getting t values
+            s0R = clr(s0R);
+
+            seeds[N + 2 * idx_offset] = s0L;
+            seeds[N + 2 * idx_offset + 1] = s0R;
+
+            uint8_t t0L = getT(s0L);
+            uint8_t t0R = getT(s0R);
+            ts[N + 2 * idx_offset] = t0L;
+            ts[N + 2 * idx_offset + 1] = t0R;
+
+            L = _mm_xor_si128(L, s0L);
+            R = _mm_xor_si128(R, s0R);
+        }
+
+        std::array<block, 2> va = {L, R};
+        std::array<uint8_t, 2> vb = {getT(L), getT(R)};
+        return std::make_pair(va, vb);
+    }
+
+
+    void update_seeds(std::vector<block>& seeds, std::vector<uint8_t>& ts, CW& cw, int level) {
+        uint64_t idx_start = (1 << level) - 1;
+        uint64_t N = (1 << (level + 1)) - 1;
+
+//        std::cout << "Populating level: " << level << "; from index = " << idx_start << ", until index = " << N << std::endl;
+
+        for (int i = idx_start; i < N; i++) {
+            int idx_offset = i-idx_start;
+            int ii = N + 2*idx_offset;
+            int ii1 = ii + 1;
+            uint8_t t0L_next_level = getT(seeds[ii]) ^ (ts[i] & cw.t_cwL);
+            uint8_t t0R_next_level = getT(seeds[ii1]) ^ (ts[i] & cw.t_cwR);
+            ts[ii] = t0L_next_level;
+            ts[ii1] = t0R_next_level;
+
+//            std::cout << "ts[" << i << "]:" << static_cast<uint32_t>(ts[i]) << std::endl;
+            if (ts[i] > 0) {
+                seeds[ii] = _mm_xor_si128(seeds[ii], cw.s_cw);
+                seeds[ii1] = _mm_xor_si128(seeds[ii1], cw.s_cw);
+            }
+
+        }
+
+    }
+
+
 }
+

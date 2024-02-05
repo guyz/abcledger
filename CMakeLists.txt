@@ -28,7 +28,7 @@ set(SRCS
         AlignedAllocator.h)
 
 #set(CMAKE_C_FLAGS "-ffunction-sections -Wall -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -fopenmp -Wno-strict-overflow -Wno-ignored-attributes")
-set(CMAKE_C_FLAGS "-ffunction-sections -Wall -maes -msse2 -msse4.1 -mavx2 -mavx512f -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow -Wno-ignored-attributes")
+set(CMAKE_C_FLAGS "-ffunction-sections -ffast-math -march=native -Wall -maes -msse2 -msse4.1 -mavx2 -mavx512f -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow -Wno-ignored-attributes")
 #set(CMAKE_C_FLAGS "-ffunction-sections -Wall  -maes -msse2 -msse4.1 -mavx2 -mpclmul -Wfatal-errors -pthread -Wno-strict-overflow  -fPIC -Wno-ignored-attributes")
 set(CMAKE_CXX_FLAGS  "${CMAKE_C_FLAGS}")
 

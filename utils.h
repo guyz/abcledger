@@ -25,6 +25,7 @@ const field MAX_VALID_INT = 536870912; // TODO: may want to change it when movin
 const int N_THREADS = 4;
 const int N_SPLITS = 16;
 const int N_SPLITS2 = 16;
+const int N_PRF_SPLITS = 128;
 
 const std::map<std::string, int> ALL_BENCHMARKS = {
         {"DPF.Gen", 0},
@@ -191,6 +192,12 @@ inline uint64_t vector_sum3(__m512i a) {
     return result;
 }
 
+// Function to set the LSB of a __m128i block to 0
+block setMSBToZero(block b);
+
+// Function to set the LSB of a __m128i block to 1
+block setMSBToOne(block b);
+
 
 // vectorized (4 ints) mod 2^31 - 1
 block modmersenne31block(block x);
@@ -204,5 +211,6 @@ void print_fake_block_sharing();
 std::vector<std::uint32_t> detrandints(int n_size, int p, const unsigned int seed = 123);
 RandData generate_random_sharings(int n_size, int p, const unsigned int seed);
 void saveToFile(const std::vector<uint32_t>& data, const std::string& filename);
+block generate_random_128bit_number();
 
 #endif //DPFPIR_UTILS_H

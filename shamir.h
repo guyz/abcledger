@@ -8,6 +8,7 @@
 #include <iostream>
 #include <vector>
 #include <cmath>
+#include "Defines.h"
 
 int64_t dot_product(std::vector<int64_t> a, std::vector<int64_t> b, int64_t p);
 int64_t poly_eval(std::vector<int64_t> coeffs, int64_t x, int64_t p);
@@ -30,5 +31,12 @@ std::pair<uint8_t, uint8_t> xor_shares(const std::pair<uint8_t, uint8_t>& x_shar
                                        const std::pair<uint8_t, uint8_t>& y_shares);
 std::vector<uint8_t> extract_values_gf256(std::vector<std::pair<uint8_t, uint8_t>> shares);
 std::vector<std::pair<uint8_t, uint8_t>> encode_to_shares_gf256(const std::vector<uint8_t>& input);
+
+
+// Additive shares
+std::vector<uint64_t> additive_share(uint64_t secret, int num_shares, bool is_xor);
+uint64_t additive_reconstruct(std::vector<uint64_t>& shares, bool is_xor);
+std::vector<block> additive_share(block secret, int num_shares);
+block additive_reconstruct(std::vector<block>& shares);
 
 #endif //DPFPIR_SHAMIR_H
