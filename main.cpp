@@ -1595,7 +1595,7 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
     ts1[0] = 1;
 
     block ocw;
-    for (int i = 0; i < logN; ++i) { // Pack two 64-bit codewords. TODO: make sure this is correct, for example, what if alpha > N/2?
+    for (int i = 0; i < logN - 1; ++i) { // Pack two 64-bit codewords. TODO: make sure this is correct, for example, what if alpha > N/2?
         uint8_t i0 = (alpha_shares[0] >> i) & 1;
         uint8_t i1 = (alpha_shares[1] >> i) & 1;
 
@@ -1613,9 +1613,9 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
         uint8_t t_cwL1 = i1 ^ tL1;
         uint8_t t_cwR1 = i1 ^ tR1;
 
-        auto round_res = mockup_mpc_cw(i0, i1, L0, L1, R0, R1, t_cwL0, t_cwL1, t_cwR0, t_cwR1, beta_shares[0], beta_shares[1], i == logN - 1);
+        auto round_res = mockup_mpc_cw(i0, i1, L0, L1, R0, R1, t_cwL0, t_cwL1, t_cwR0, t_cwR1, beta_shares[0], beta_shares[1], i == logN - 2);
 
-        if (i == logN - 1) {
+        if (i == logN - 2) {
             ocw = round_res.second;
         }
 
@@ -1624,9 +1624,13 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
     }
 
     // Evaluate
-    uint64_t N = 1 << logN;
-    uint64_t idx_start = seeds0.size() - N - 1;
-    for (uint64_t i = idx_start; i < seeds0.size(); ++i) {
+//    uint64_t N = 1 << logN;
+//    uint64_t idx_start = seeds0.size() - N - 1;
+//    uint64_t idx_start = seeds0.size() - (1 << (logN - 2) );
+    uint64_t idx_start = (1 << (logN - 2)) - 1;
+    uint64_t N = (1 << (logN - 1)) - 1;
+
+    for (uint64_t i = idx_start; i < N; ++i) {
         if (ts0[i] == 1) {
             seeds0[i] = _mm_xor_si128(seeds0[i], ocw);
         }
@@ -1636,21 +1640,20 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
     }
 
 //    // Sanity check - note, need to print each 64bit and not 32bit
-    alignas(16) int32_t values[4];
+    alignas(16) int64_t values[2];  // Change to int64_t for 64-bit integers
 
-    for (uint64_t i = idx_start; i < seeds0.size() - 1; i += 1) {
+//        std::cout << "idx_start: " << idx_start << std::endl;
+    for (uint64_t i = idx_start; i < N; i += 1) {
         auto res_i = _mm_xor_si128(seeds0[i], seeds1[i]);
-//        auto res_i = seeds0[i];
-        _mm_store_si128(reinterpret_cast<block*>(values), res_i);
+        _mm_store_si128(reinterpret_cast<__m128i*>(values), res_i);
 
-        for (int j = 0; j < 4; ++j) {
+        for (int j = 0; j < 2; ++j) {  // Loop through 2 64-bit integers
             if (values[j] != 0) {
-                std::cout << "Block values[" << i << "]: ";
+                std::cout << "Block values[" << i - idx_start << "]: ";
                 std::cout << values[j] << " ";
                 std::cout << std::endl;
             }
         }
-
     }
 
 }
@@ -1871,7 +1874,7 @@ int main(int argc, char** argv) {
 
 
     for (int i = 0; i < 10; i++) {
-        fake_doram(5, 25, 20);
+        fake_doram(3, 25, 26);
     }
     return 0;
 

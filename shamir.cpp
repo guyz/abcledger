@@ -282,6 +282,29 @@ std::vector<uint8_t> extract_values_gf256(std::vector<std::pair<uint8_t, uint8_t
     return res;
 }
 
+uint64_t reverseBits(uint64_t n)
+{
+    uint64_t rev = 0;
+
+    // traversing bits of 'n' from the right
+    while (n > 0) {
+        // bitwise left shift
+        // 'rev' by 1
+        rev <<= 1;
+
+        // if current bit is '1'
+        if (n & 1 == 1)
+            rev ^= 1;
+
+        // bitwise right shift
+        // 'n' by 1
+        n >>= 1;
+    }
+
+    // required number
+    return rev;
+}
+
 std::vector<uint64_t> additive_share(uint64_t secret, int num_shares, bool is_xor) {
     std::vector<uint64_t> shares;
     shares.push_back(0);
@@ -296,6 +319,8 @@ std::vector<uint64_t> additive_share(uint64_t secret, int num_shares, bool is_xo
         }
     }
     if (is_xor) {
+//        std::cout<< "reverse: " << reverseBits(secret) << std::endl;
+//        shares[0] = reverseBits(secret) ^ r;
         shares[0] = secret ^ r;
     } else {
         shares[0] = secret - r;
