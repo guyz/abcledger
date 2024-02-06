@@ -18,7 +18,7 @@
 
 const int FIELD_ORDER = 2^31 - 1;
 std::vector<block> globalVector0, globalVector1;
-BS::thread_pool pool(256);
+BS::thread_pool pool(N_PRF_SPLITS + 64);
 //extern std::vector<std::array<block, 4>> globalPiVector;
 //std::array<std::vector<uint32_t>, 3> vms;
 //DPF::HackyVectorAllocator allocator;
@@ -1492,6 +1492,8 @@ namespace DPF {
     // Iterates over seeds in the current level, expand them, then compute the left children and right children sums
     std::pair<std::array<block, 2>, std::array<uint8_t, 2>> compute_L_R_for_level(std::vector<block>& seeds,
                                                                                   std::vector<uint8_t>& ts,
+                                                                                  std::vector<block>& seeds_out,
+                                                                                  std::vector<uint8_t>& ts_out,
                                                                                   int level) {
         uint64_t idx_start = (1 << level) - 1;
         uint64_t N = (1 << (level + 1)) - 1;
@@ -1500,20 +1502,12 @@ namespace DPF {
         block L = _mm_setzero_si128();
         block R = _mm_setzero_si128();
 
-        /* Comment this for batch AES. For some reason sometimes it's better (maybe up to 2^24 and sometimes worse) */
         // Left children, but they currently 'run over' the right children
-        mAesFixedKey.encryptECB_MMO_Blocks(seeds.data() + idx_start, N_elements, seeds.data() + N);
-
-//        size_t batch_size = 16384;
-//        for (size_t idx = 0; idx < N_elements; idx += batch_size) {
-//            size_t current_batch_size = std::min(batch_size, N_elements - idx);
-//            mAesFixedKey.encryptECB_MMO_Blocks(seeds.data() + idx, current_batch_size, seeds.data() + N + idx);
-//        }
+        mAesFixedKey.encryptECB_MMO_Blocks(seeds.data() + idx_start, N_elements, seeds_out.data() + N);
 
         block* seeds_curr_level_ptr = seeds.data() + idx_start;
-//        block* seeds_curr_level_ptr = seeds.data();
-        block* seeds_next_level_ptr = seeds.data() + N;
-        uint8_t* ts_next_level_ptr = ts.data() + N;
+        block* seeds_next_level_ptr = seeds_out.data() + N;
+        uint8_t* ts_next_level_ptr = ts_out.data() + N;
 
         // Moving the elements to even positions and handling left children
         for (size_t i = 0; i < N_elements; ++i) {
@@ -1530,31 +1524,6 @@ namespace DPF {
             ts_next_level_ptr[i + 1] = getT(tmp);
             R = _mm_xor_si128(R, tmp); // TODO: optimize? wider registers?
         }
-         /* END Comment/uncomment here for batch */
-////
-/* Comment/uncomment here for serialized */
-//        for (uint64_t i = idx_start; i < N; ++i) {
-//            int idx_offset = i - idx_start;
-//            block s0 = seeds[i]; // TODO: this might be wrong? Because it goes back to the first one
-//            block s0L = prg::getL(s0);
-//            block s0R = _mm_xor_si128(s0, s0L); // Half-tree optimization
-//
-////            s0L = clr(s0L); // Clear after getting t values TODO: maybe not needed?
-////            s0R = clr(s0R);
-//
-//            seeds[N + 2 * idx_offset] = s0L;
-//            seeds[N + 2 * idx_offset + 1] = s0R;
-//
-//            uint8_t t0L = getT(s0L);
-//            uint8_t t0R = getT(s0R);
-//            ts[N + 2 * idx_offset] = t0L;
-//            ts[N + 2 * idx_offset + 1] = t0R;
-//
-//            L = _mm_xor_si128(L, s0L);
-//            R = _mm_xor_si128(R, s0R);
-//        }
-
-        /* ENDComment/uncomment here for serialized */
 
         std::array<block, 2> va = {L, R};
         std::array<uint8_t, 2> vb = {getT(L), getT(R)};
@@ -1562,7 +1531,7 @@ namespace DPF {
     }
 
 
-    void update_seeds(std::vector<block>& seeds, std::vector<uint8_t>& ts, CW& cw, int level) {
+    void update_seeds(std::vector<block>& seeds, std::vector<uint8_t>& ts, std::vector<uint8_t>& ts_in, CW& cw, int level) {
         uint64_t idx_start = (1 << level) - 1;
         uint64_t N = (1 << (level + 1)) - 1;
 
@@ -1572,21 +1541,18 @@ namespace DPF {
             int idx_offset = i-idx_start;
             int ii = N + 2*idx_offset;
             int ii1 = ii + 1;
-            uint8_t t0L_next_level = getT(seeds[ii]) ^ (ts[i] & cw.t_cwL);
-            uint8_t t0R_next_level = getT(seeds[ii1]) ^ (ts[i] & cw.t_cwR);
+            uint8_t t0L_next_level = getT(seeds[ii]) ^ (ts_in[i] & cw.t_cwL);
+            uint8_t t0R_next_level = getT(seeds[ii1]) ^ (ts_in[i] & cw.t_cwR);
             ts[ii] = t0L_next_level;
             ts[ii1] = t0R_next_level;
 
-//            std::cout << "ts[" << i << "]:" << static_cast<uint32_t>(ts[i]) << std::endl;
-            if (ts[i] > 0) {
+            if (ts_in[i] > 0) {
                 seeds[ii] = _mm_xor_si128(seeds[ii], cw.s_cw);
                 seeds[ii1] = _mm_xor_si128(seeds[ii1], cw.s_cw);
             }
 
         }
-
     }
-
 
 }
 

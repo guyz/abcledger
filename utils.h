@@ -25,7 +25,7 @@ const field MAX_VALID_INT = 536870912; // TODO: may want to change it when movin
 const int N_THREADS = 4;
 const int N_SPLITS = 16;
 const int N_SPLITS2 = 16;
-const int N_PRF_SPLITS = 512;
+const int N_PRF_SPLITS = 4;
 
 const std::map<std::string, int> ALL_BENCHMARKS = {
         {"DPF.Gen", 0},

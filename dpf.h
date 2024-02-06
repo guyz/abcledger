@@ -145,6 +145,10 @@ namespace DPF {
 
     std::pair<KeyShare, KeyShare> VerGenM(size_t alpha, size_t logn, uint32_t msg);
     std::vector<uint32_t> VerEvalFull8M(const KeyShare& key, size_t logn, bool party_index, bool pi_index = false);
-    std::pair<std::array<block, 2>, std::array<uint8_t, 2>> compute_L_R_for_level(std::vector<block>& seeds, std::vector<uint8_t>& ts, int level);
-    void update_seeds(std::vector<block>& seeds, std::vector<uint8_t>& ts, CW& cw, int level);
+    std::pair<std::array<block, 2>, std::array<uint8_t, 2>> compute_L_R_for_level(std::vector<block>& seeds,
+                                                                               std::vector<uint8_t>& ts,
+                                                                               std::vector<block>& seeds_out,
+                                                                               std::vector<uint8_t>& ts_out,
+                                                                               int level);
+    void update_seeds(std::vector<block>& seeds, std::vector<uint8_t>& ts, std::vector<uint8_t>& ts_in, CW& cw, int level);
 }

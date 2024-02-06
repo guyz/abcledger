@@ -19,6 +19,7 @@
 #include "PRNG.h"
 #include <future>
 //#include "aesnihash.h"
+#include "BS_thread_pool.hpp"
 
 //#include "AlignedAllocator.h"
 
@@ -1558,9 +1559,6 @@ std::pair<CW, block> mockup_mpc_cw(uint8_t i0, uint8_t i1, block L0, block L1, b
                                    block beta0, block beta1, bool is_last_level) {
     CW cw;
 
-    // Equivalent to: s_cw = (i0 ^ i1 == 0) ? R0 ^ R1 : L0 ^ L1;
-//    std::cout << "i0^i1: " << static_cast<uint32_t>(i0 ^ i1) << std::endl;
-
     if ((i0 ^ i1) == 0) {
         cw.s_cw = _mm_xor_si128(R0, R1);
     } else {
@@ -1584,29 +1582,28 @@ std::pair<CW, block> mockup_mpc_cw(uint8_t i0, uint8_t i1, block L0, block L1, b
 }
 
 void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_shares, int logN,
-                  std::vector<block>& seeds0, std::vector<block>& seeds1,
-                  std::vector<uint8_t>& ts0, std::vector<uint8_t>& ts1) {
+                  std::array<std::vector<block>, N_PRF_SPLITS + 1>& seeds0, std::array<std::vector<block>, N_PRF_SPLITS + 1>& seeds1,
+                  std::array<std::vector<uint8_t>, N_PRF_SPLITS + 1>& ts0, std::array<std::vector<uint8_t>, N_PRF_SPLITS + 1>& ts1) {
     block s0 = generate_random_128bit_number();
     block s1 = generate_random_128bit_number();
 
-    seeds0[0] = setMSBToZero(s0);
-    seeds1[0] = setMSBToOne(s1);
-    ts0[0] = 0;
-    ts1[0] = 1;
+    seeds0[0][0] = setMSBToZero(s0);
+    seeds1[0][0] = setMSBToOne(s1);
+    ts0[0][0] = 0;
+    ts1[0][0] = 1;
 
     block ocw;
-    for (int i = 0; i < logN - 1; ++i) { // Pack two 64-bit codewords. TODO: make sure this is correct, for example, what if alpha > N/2?
+    for (int i = 0; i < logN - 2; ++i) { // Pack two 64-bit codewords & exit before the last round, to run multi-alpha DPF in parallel. TODO: make sure this is correct, for example, what if alpha > N/2?
         uint8_t i0 = (alpha_shares[0] >> i) & 1;
         uint8_t i1 = (alpha_shares[1] >> i) & 1;
 
-        // Refactored to reduce redundant code
         auto processParty = [&](std::vector<block>& seeds, std::vector<uint8_t>& ts) -> std::tuple<block, block, uint8_t, uint8_t> {
-            auto LRvals = DPF::compute_L_R_for_level(seeds, ts, i);
+            auto LRvals = DPF::compute_L_R_for_level(seeds, ts, seeds, ts, i);
             return std::make_tuple(LRvals.first[0], LRvals.first[1], LRvals.second[0], LRvals.second[1]);
         };
 
-        auto [L0, R0, tL0, tR0] = processParty(seeds0, ts0);
-        auto [L1, R1, tL1, tR1] = processParty(seeds1, ts1);
+        auto [L0, R0, tL0, tR0] = processParty(seeds0[0], ts0[0]);
+        auto [L1, R1, tL1, tR1] = processParty(seeds1[0], ts1[0]);
 
         uint8_t t_cwL0 = i0 ^ tL0;
         uint8_t t_cwR0 = i0 ^ tR0;
@@ -1615,43 +1612,88 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
 
         auto round_res = mockup_mpc_cw(i0, i1, L0, L1, R0, R1, t_cwL0, t_cwL1, t_cwR0, t_cwR1, beta_shares[0], beta_shares[1], i == logN - 2);
 
-        if (i == logN - 2) {
-            ocw = round_res.second;
-        }
+        DPF::update_seeds(seeds0[0], ts0[0], ts0[0], round_res.first, i);
+        DPF::update_seeds(seeds1[0], ts1[0], ts1[0], round_res.first, i);
+    }
 
-        DPF::update_seeds(seeds0, ts0, round_res.first, i);
-        DPF::update_seeds(seeds1, ts1, round_res.first, i);
+    // Multi-alpha DPF (for now, run over the same beta.. // TODO: ... )
+    // TODO: need to tweak alpha, beta ..
+    auto last_level = logN - 2;
+    uint8_t i0 = (alpha_shares[0] >> last_level) & 1;
+    uint8_t i1 = (alpha_shares[1] >> last_level) & 1;
+    std::vector<block> ocws(N_PRF_SPLITS);
+    std::vector<std::future<void>> futures;
+    extern BS::thread_pool pool;
+    for (int i = 1; i < N_PRF_SPLITS + 1; i++) { // TODO: need to use a different PRF
+        futures.push_back(pool.submit_task([&, i]() {
+            auto processParty = [&](std::vector<block>& seeds, std::vector<uint8_t>& ts, std::vector<block>& seeds_out, std::vector<uint8_t>& ts_out) -> std::tuple<block, block, uint8_t, uint8_t> {
+                auto LRvals = DPF::compute_L_R_for_level(seeds, ts, seeds_out, ts_out, last_level);
+                return std::make_tuple(LRvals.first[0], LRvals.first[1], LRvals.second[0], LRvals.second[1]);
+            };
+
+            auto [L0, R0, tL0, tR0] = processParty(seeds0[0], ts0[0], seeds0[i], ts0[i]);
+            auto [L1, R1, tL1, tR1] = processParty(seeds1[0], ts1[0], seeds1[i], ts1[i]);
+
+            uint8_t t_cwL0 = i0 ^ tL0;
+            uint8_t t_cwR0 = i0 ^ tR0;
+            uint8_t t_cwL1 = i1 ^ tL1;
+            uint8_t t_cwR1 = i1 ^ tR1;
+
+            // TODO: in practice, in the same round
+            auto round_res = mockup_mpc_cw(i0, i1, L0, L1, R0, R1, t_cwL0, t_cwL1, t_cwR0, t_cwR1, beta_shares[0], beta_shares[1], true);
+            ocws[i-1] = round_res.second;
+
+            DPF::update_seeds(seeds0[i], ts0[i], ts0[0], round_res.first, last_level);
+            DPF::update_seeds(seeds1[i], ts1[i], ts1[0], round_res.first, last_level);
+        }));
+    }
+
+    for (auto& future : futures) {
+        future.wait();
     }
 
     // Evaluate
-//    uint64_t N = 1 << logN;
-//    uint64_t idx_start = seeds0.size() - N - 1;
-//    uint64_t idx_start = seeds0.size() - (1 << (logN - 2) );
-    uint64_t idx_start = (1 << (logN - 2)) - 1;
-    uint64_t N = (1 << (logN - 1)) - 1;
+    uint64_t idx_start = (1 << (logN - 1)) - 1;
+    uint64_t N = (1 << (logN)) - 1;
 
-    for (uint64_t i = idx_start; i < N; ++i) {
-        if (ts0[i] == 1) {
-            seeds0[i] = _mm_xor_si128(seeds0[i], ocw);
-        }
-        if (ts1[i] == 1) {
-            seeds1[i] = _mm_xor_si128(seeds1[i], ocw);
-        }
+    futures.clear();
+    for (int i = 1; i < N_PRF_SPLITS + 1; i++) {
+        futures.push_back(pool.submit_task([&, i]() {
+
+            for (uint64_t j = idx_start; j < N; ++j) {
+                if (ts0[i][j] == 1) {
+                    seeds0[i][j] = _mm_xor_si128(seeds0[i][j], ocws[i-1]);
+                }
+                if (ts1[i][j] == 1) {
+                    seeds1[i][j] = _mm_xor_si128(seeds1[i][j], ocws[i-1]);
+                }
+            }
+        }));
+    }
+
+    for (auto& future : futures) {
+        future.wait();
     }
 
 //    // Sanity check - note, need to print each 64bit and not 32bit
     alignas(16) int64_t values[2];  // Change to int64_t for 64-bit integers
 
-//        std::cout << "idx_start: " << idx_start << std::endl;
-    for (uint64_t i = idx_start; i < N; i += 1) {
-        auto res_i = _mm_xor_si128(seeds0[i], seeds1[i]);
-        _mm_store_si128(reinterpret_cast<__m128i*>(values), res_i);
+//        std::cout << "idx_start: " << idx_start << ", N: " << N << std::endl;
+    for (int j = 1; j < N_PRF_SPLITS + 1; j++) {
+//        for (uint64_t i = idx_start; i < N; i += 1) {
+            for (uint64_t i = 0; i < seeds0[j].size(); i += 1) {
+            auto res_i = _mm_xor_si128(seeds0[j][i], seeds1[j][i]);
+//            _mm_store_si128(reinterpret_cast<__m128i *>(values), seeds0[j][i]);
+            _mm_store_si128(reinterpret_cast<__m128i *>(values), res_i);
+            //// res_i);
 
-        for (int j = 0; j < 2; ++j) {  // Loop through 2 64-bit integers
-            if (values[j] != 0) {
-                std::cout << "Block values[" << i - idx_start << "]: ";
-                std::cout << values[j] << " ";
-                std::cout << std::endl;
+            for (int k = 0; k < 2; ++k) {  // Loop through 2 64-bit integers
+                if (values[k] != 0) {
+//                    std::cout << "i=" << i << ", j=" << j << ", k=" << k << std::endl;
+                    std::cout << "Block values[" << i - idx_start << "]: ";
+                    std::cout << values[k] << " ";
+                    std::cout << std::endl;
+                }
             }
         }
     }
@@ -1666,9 +1708,9 @@ void fake_doram(uint64_t alpha, uint64_t beta, int logN) {
     int log2_delta = static_cast<int>(std::log2(N_PRF_SPLITS));
     int logNd = logN - log2_delta;
 
-    std::array<std::vector<block>, N_PRF_SPLITS> seeds0, seeds1;
-    std::array<std::vector<uint8_t>, N_PRF_SPLITS> ts0, ts1;
-    for (int i = 0; i < N_PRF_SPLITS; i++) {
+    std::array<std::vector<block>, N_PRF_SPLITS + 1> seeds0, seeds1;
+    std::array<std::vector<uint8_t>, N_PRF_SPLITS + 1> ts0, ts1;
+    for (int i = 0; i < N_PRF_SPLITS + 1; i++) {
         seeds0[i] = std::vector<block>((1ULL<< (logNd + 1)));
         seeds1[i] = std::vector<block>((1ULL<< (logNd + 1)));
         ts0[i] = std::vector<uint8_t>((1ULL<< (logNd + 1)));
@@ -1678,21 +1720,22 @@ void fake_doram(uint64_t alpha, uint64_t beta, int logN) {
     std::chrono::duration<double> evalT;
     evalT = std::chrono::duration<double>::zero();
     auto time1 = std::chrono::high_resolution_clock::now();
-
-    // This is a simpler version of the optimization, in practice, should split at the key-word level..
-    std::vector<std::future<void>> futures;
-    for (int i = 0; i < N_PRF_SPLITS; i++) {
-        // Capture variables by value or reference as needed, ensuring thread safety
-        futures.emplace_back(std::async(std::launch::async, [&, i](){
-            // Use 'i' and other captured variables safely within this lambda
-//            std::cout << "seeds0.size: " << seeds0[i].size() << std::endl;
-            fake_gen_mpc(alpha_shares, beta_shares, logNd, seeds0[i], seeds1[i], ts0[i], ts1[i]);
-        }));
-    }
-
-    for (auto& future : futures) {
-        future.wait();
-    }
+    fake_gen_mpc(alpha_shares, beta_shares, logNd, seeds0, seeds1, ts0, ts1);
+//
+//    // This is a simpler version of the optimization, in practice, should split at the key-word level..
+//    std::vector<std::future<void>> futures;
+//    for (int i = 0; i < N_PRF_SPLITS; i++) {
+//        // Capture variables by value or reference as needed, ensuring thread safety
+//        futures.emplace_back(std::async(std::launch::async, [&, i](){
+//            // Use 'i' and other captured variables safely within this lambda
+////            std::cout << "seeds0.size: " << seeds0[i].size() << std::endl;
+//            fake_gen_mpc(alpha_shares, beta_shares, logNd, seeds0[i], seeds1[i], ts0[i], ts1[i]);
+//        }));
+//    }
+//
+//    for (auto& future : futures) {
+//        future.wait();
+//    }
 
     auto time2 = std::chrono::high_resolution_clock::now();
     evalT = time2 - time1;
@@ -1874,7 +1917,7 @@ int main(int argc, char** argv) {
 
 
     for (int i = 0; i < 10; i++) {
-        fake_doram(3, 25, 26);
+        fake_doram(3, 27, 8);
     }
     return 0;
 
