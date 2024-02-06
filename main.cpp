@@ -18,6 +18,7 @@
 #include <map>
 #include "PRNG.h"
 #include <future>
+//#include "aesnihash.h"
 
 //#include "AlignedAllocator.h"
 
@@ -940,23 +941,23 @@ std::chrono::duration<double> handleBenchmark(Server* server, int serverIndex, i
             case 9:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->balanceMalicious(request.kmsA1_i, request.kmsA1defer_i, request.tag_A1_share, request.one0,
-                                        request.one1, request.one2, vms, vmsmulti);
+                                         request.one1, request.one2, vms, vmsmulti);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "balanceMalicious" << std::endl;
                 break;
             case 10:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->transfer(request.kmsA_i, request.kmsA1_i, request.kmsB_i, request.tag_A_share,
-                                request.tag_A1_share, vms, vmsmulti);
+                                 request.tag_A1_share, vms, vmsmulti);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transfer" << std::endl;
                 break;
             case 11:
                 time1 = std::chrono::high_resolution_clock::now();
                 server->transferMalicious(request.kmsA_i, request.kmsAdefer_i, request.kmsA1_i, request.kmsA1defer_i,
-                                         request.kmsB_i, request.tag_A_share, request.tag_A1_share,
-                                         request.beta0, request.beta1, request.beta2, request.one0,
-                                         request.one1, request.one2, vms, vmsmulti);
+                                          request.kmsB_i, request.tag_A_share, request.tag_A1_share,
+                                          request.beta0, request.beta1, request.beta2, request.one0,
+                                          request.one1, request.one2, vms, vmsmulti);
                 time2 = std::chrono::high_resolution_clock::now();
 //                std::cout << "transferMalicious" << std::endl;
                 break;
@@ -1131,8 +1132,8 @@ void test_client_malicious(int serverIndex, int logN) {
 
     // Test malicious
     server.transferMalicious(kmsA_i, kmsAdefer_i, kmsA1_i, kmsA1defer_i, kmsB_i, tag_A_share, tag_A1_share,
-                                 beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex],
-                                 one1[serverIndex], one2[serverIndex], vms, vmsmulti);
+                             beta0[serverIndex], beta1[serverIndex], beta2[serverIndex], one0[serverIndex],
+                             one1[serverIndex], one2[serverIndex], vms, vmsmulti);
 
     std::cout << "Done" << std::endl;
 }
@@ -1594,7 +1595,7 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
     ts1[0] = 1;
 
     block ocw;
-    for (int i = 0; i < logN; ++i) {
+    for (int i = 0; i < logN; ++i) { // Pack two 64-bit codewords. TODO: make sure this is correct, for example, what if alpha > N/2?
         uint8_t i0 = (alpha_shares[0] >> i) & 1;
         uint8_t i1 = (alpha_shares[1] >> i) & 1;
 
@@ -1634,22 +1635,23 @@ void fake_gen_mpc(std::vector<uint64_t>& alpha_shares, std::vector<block>& beta_
         }
     }
 
-//    // Sanity check
-//    alignas(16) int32_t values[4];
-//    for (uint64_t i = idx_start; i < seeds0.size() - 1; i += 1) {
-//        auto res_i = _mm_xor_si128(seeds0[i], seeds1[i]);
-////        auto res_i = seeds0[i];
-//        _mm_store_si128(reinterpret_cast<block*>(values), res_i);
-//
-//        for (int j = 0; j < 4; ++j) {
-//            if (values[j] != 0) {
-//                std::cout << "Block values[" << i << "]: ";
-//                std::cout << values[j] << " ";
-//                std::cout << std::endl;
-//            }
-//        }
-//
-//    }
+//    // Sanity check - note, need to print each 64bit and not 32bit
+    alignas(16) int32_t values[4];
+
+    for (uint64_t i = idx_start; i < seeds0.size() - 1; i += 1) {
+        auto res_i = _mm_xor_si128(seeds0[i], seeds1[i]);
+//        auto res_i = seeds0[i];
+        _mm_store_si128(reinterpret_cast<block*>(values), res_i);
+
+        for (int j = 0; j < 4; ++j) {
+            if (values[j] != 0) {
+                std::cout << "Block values[" << i << "]: ";
+                std::cout << values[j] << " ";
+                std::cout << std::endl;
+            }
+        }
+
+    }
 
 }
 
@@ -1680,6 +1682,7 @@ void fake_doram(uint64_t alpha, uint64_t beta, int logN) {
         // Capture variables by value or reference as needed, ensuring thread safety
         futures.emplace_back(std::async(std::launch::async, [&, i](){
             // Use 'i' and other captured variables safely within this lambda
+//            std::cout << "seeds0.size: " << seeds0[i].size() << std::endl;
             fake_gen_mpc(alpha_shares, beta_shares, logNd, seeds0[i], seeds1[i], ts0[i], ts1[i]);
         }));
     }
@@ -1695,13 +1698,102 @@ void fake_doram(uint64_t alpha, uint64_t beta, int logN) {
     std::cout << "Took overall: " << evalT_milliseconds.count() << "ms" << std::endl;
 }
 
+double benchmarkAESNIHash128(size_t dataSize, unsigned iterations) {
+    // Create a buffer of dataSize bytes
+    std::vector<uint8_t> data(dataSize, 0);
+
+    // Fill the buffer with some data
+    for (size_t i = 0; i < dataSize; ++i) {
+        data[i] = static_cast<uint8_t>(i & 0xFF);
+    }
+
+    // Start the timer
+    auto start = std::chrono::high_resolution_clock::now();
+
+
+//    // Run the hash function multiple times
+//    for (unsigned i = 0; i < iterations; ++i) {
+//        AESNI_Hash128(data.data(), data.size());
+//    }
+
+    // Stop the timer
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Calculate the duration in seconds
+    std::chrono::duration<double> elapsed = end - start;
+
+    // Calculate the total number of bytes processed
+    size_t totalBytesProcessed = dataSize * iterations;
+
+    // Convert bytes to megabytes and calculate throughput in MB/sec
+    double mbProcessed = static_cast<double>(totalBytesProcessed) / (1024 * 1024);
+    return mbProcessed / elapsed.count();
+}
+
+double benchmarkEncryptECB_MMO(unsigned iterations) {
+    __m128i seed = _mm_set_epi32(0x12345678, 0x9ABCDEF0, 0x12345678, 0x9ABCDEF0);
+
+    // Start the timer
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Run the encryption function multiple times
+    for (unsigned i = 0; i < iterations; ++i) {
+        mAesFixedKey.encryptECB_MMO(seed + i);
+    }
+
+    // Stop the timer
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Calculate the duration in seconds
+    std::chrono::duration<double> elapsed = end - start;
+
+    // Calculate throughput in MB/sec
+    double mbProcessed = (16.0 / 1024 / 1024) * iterations; // 16 bytes (128 bits) per iteration
+    return mbProcessed / elapsed.count();
+}
+
+double benchmarkEncryptECB_MMOv2(unsigned iterations, int batch_size=1024) {
+//    __m128i seed = _mm_set_epi32(0x12345678, 0x9ABCDEF0, 0x12345678, 0x9ABCDEF0);
+
+    std::vector<std::vector<block>> pts;
+    std::vector<std::vector<block>> cts;
+    pts.resize(iterations / batch_size);
+    cts.resize(iterations / batch_size);
+    for (unsigned i = 0; i < iterations/batch_size; ++i) {
+        for (int j = 0; j<batch_size; j++) {
+            __m128i seed = _mm_set_epi32(0x12345678, 0x9ABCDEF0, 0x12345678, 0x9ABCDEF0);
+            seed += (i*batch_size + j);
+            pts[i].push_back(seed);
+            cts[i].push_back(ZeroBlock);
+        }
+    }
+
+    // Start the timer
+    auto start = std::chrono::high_resolution_clock::now();
+
+    // Run the encryption function multiple times
+    for (unsigned i = 0; i < iterations/batch_size; ++i) {
+        mAesFixedKey.encryptECB_MMO_Blocks(pts[i].data(), batch_size, cts[i].data());
+    }
+
+    // Stop the timer
+    auto end = std::chrono::high_resolution_clock::now();
+
+    // Calculate the duration in seconds
+    std::chrono::duration<double> elapsed = end - start;
+
+    // Calculate throughput in MB/sec
+    double mbProcessed = (16.0 / 1024 / 1024) * iterations; // 16 bytes (128 bits) per iteration
+    return mbProcessed / elapsed.count();
+}
+
 int main(int argc, char** argv) {
     std::cout << "Current working directory: "
               << std::filesystem::current_path()
               << std::endl;
 
     if(argc < 4) {
-	    std::cout << "Usage: ./prioram <server_index> <log_tree_size> <benchmark1>, <benchmark2>..." << std::endl;
+        std::cout << "Usage: ./prioram <server_index> <log_tree_size> <benchmark1>, <benchmark2>..." << std::endl;
         std::cout << "List of Available Benchmarks:" << std::endl;
         for (auto benchmarkName : BENCHMARK_NAMES) {
             std::cout << benchmarkName << std::endl;
@@ -1767,8 +1859,19 @@ int main(int argc, char** argv) {
 //    testInnerProducts(1024*1024);
 //    return 0;
 
+    double mbPerSec = benchmarkEncryptECB_MMO(1024*1024); // 1,000,000 iterations
+    std::cout << "Throughput for encryptECB_MMO: " << mbPerSec << " MB/sec" << std::endl;
+
+    double mbPerSec2 = benchmarkEncryptECB_MMOv2(1024*1024, 1024*1024); // 1,000,000 iterations
+    std::cout << "Throughput for encryptECB_MMO_Batch: " << mbPerSec2 << " MB/sec" << std::endl;
+
+    // Assuming benchmarkAESNIHash128 is defined similarly
+    double mbPerSecAESNI = benchmarkAESNIHash128(1024 * 1024, 100); // 1 MB block, 100 iterations
+    std::cout << "Throughput for AESNI_Hash128: " << mbPerSecAESNI << " MB/sec" << std::endl;
+
+
     for (int i = 0; i < 10; i++) {
-        fake_doram(5, 25, 24);
+        fake_doram(5, 25, 20);
     }
     return 0;
 
